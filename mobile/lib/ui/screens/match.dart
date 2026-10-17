@@ -10,7 +10,6 @@ import '../../data/repository.dart';
 import '../widgets/common.dart';
 import '../widgets/loader.dart';
 import '../widgets/network_chip.dart';
-import '../../core/theme.dart';
 import '../widgets/sports.dart';
 import 'product.dart';
 import 'scoring.dart';
@@ -143,17 +142,30 @@ class ScoreHeader extends StatelessWidget {
             TeamBadge(
                 teamId: '${s['team_id']}', name: '${s['name'] ?? 'TBC'}', size: 56, light: true, showName: false),
             const SizedBox(height: 8),
-            Text('${s['name'] ?? 'TBC'}',
+            Text('${s['name'] ?? 'TBC'}'.toUpperCase(),
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+                style: const TextStyle(
+                    fontFamily: condensedFont,
+                    color: Colors.white,
+                    fontSize: 19,
+                    height: 1.0,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 2),
             Text(s['overs'] != null ? '$role · ${s['overs']} ov' : role, style: sub),
           ]),
         );
     return Container(
-      decoration: BoxDecoration(color: AppColors.header, borderRadius: BorderRadius.circular(24)),
-      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(32),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF1C1C1E), Color(0xFF243F0C), Color(0xFF4E7A12)],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
       child: Column(children: [
         StatusPill(status: status, time: d),
         const SizedBox(height: 6),
@@ -169,11 +181,14 @@ class ScoreHeader extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
             child: FittedBox(
               child: Text(
-                showScore ? '${scoreText(home)} - ${scoreText(away)}' : 'vs',
+                showScore ? '${scoreText(home)}:${scoreText(away)}' : 'VS',
                 style: const TextStyle(
+                    fontFamily: condensedFont,
                     color: Colors.white,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 72,
+                    height: 1.0,
+                    letterSpacing: -2,
+                    fontWeight: FontWeight.w900,
                     fontFeatures: [FontFeature.tabularFigures()]),
                 semanticsLabel: showScore
                     ? '${home['name']} ${scoreText(home)}, ${away['name']} ${scoreText(away)}'

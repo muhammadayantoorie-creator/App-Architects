@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/formatters.dart';
 import '../../core/theme.dart';
 
+/// Android's built-in condensed family (falls back to the default font elsewhere).
+const condensedFont = 'sans-serif-condensed';
+
 const _badgePalette = [
   Color(0xFF1565C0), Color(0xFFC62828), Color(0xFF2E7D32), Color(0xFF6A1B9A), Color(0xFFEF6C00),
   Color(0xFF00838F), Color(0xFFAD1457), Color(0xFF4E342E), Color(0xFF283593), Color(0xFF558B2F),
@@ -115,23 +118,25 @@ class ExploreHeading extends StatelessWidget {
       header: true,
       label: 'Explore $word',
       child: ExcludeSemantics(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Explore',
                 style: TextStyle(
-                    color: AppColors.textSub, fontSize: 24, fontWeight: FontWeight.w300, height: 1.1)),
+                    color: AppColors.textSub, fontSize: 30, fontWeight: FontWeight.w300, height: 1.1)),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: Text(
                 word.toUpperCase(),
                 style: const TextStyle(
+                    fontFamily: condensedFont,
                     color: Colors.white,
-                    fontSize: 52,
+                    fontSize: 72,
                     fontWeight: FontWeight.w900,
                     height: 1.0,
-                    letterSpacing: -1.5),
+                    letterSpacing: -2),
               ),
             ),
           ]),

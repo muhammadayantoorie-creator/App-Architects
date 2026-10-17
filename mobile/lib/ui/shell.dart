@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/theme.dart';
 import '../data/app_state.dart';
 import 'screens/club.dart';
 import 'screens/fixtures.dart';
@@ -78,7 +79,11 @@ class _ShellState extends State<Shell> {
           const NetworkChip(),
           PopupMenuButton<String>(
             tooltip: 'More options',
-            icon: const Icon(Icons.more_vert, semanticLabel: 'More options'),
+            icon: const CircleAvatar(
+              radius: 22,
+              backgroundColor: AppColors.chip,
+              child: Icon(Icons.more_horiz, color: Colors.white, semanticLabel: 'More options'),
+            ),
             onSelected: (v) => switch (v) {
               'outbox' => _open(const OutboxScreen()),
               'scoring' => _open(ScoringScreen(leagueId: s.leagueId)),
@@ -114,27 +119,85 @@ class _ShellState extends State<Shell> {
           _ => const ClubTab(),
         },
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.event_outlined, semanticLabel: 'Matches'),
-              selectedIcon: Icon(Icons.event, semanticLabel: 'Matches'),
-              label: 'Matches'),
-          NavigationDestination(
-              icon: Icon(Icons.leaderboard_outlined, semanticLabel: 'Standings'),
-              selectedIcon: Icon(Icons.leaderboard, semanticLabel: 'Standings'),
-              label: 'Standings'),
-          NavigationDestination(
-              icon: Icon(Icons.storefront_outlined, semanticLabel: 'Store'),
-              selectedIcon: Icon(Icons.storefront, semanticLabel: 'Store'),
-              label: 'Store'),
-          NavigationDestination(
-              icon: Icon(Icons.groups_outlined, semanticLabel: 'Club'),
-              selectedIcon: Icon(Icons.groups, semanticLabel: 'Club'),
-              label: 'Club'),
-        ],
+      bottomNavigationBar: _PillNav(index: _index, onTap: (i) => setState(() => _index = i)),
+    );
+  }
+}
+
+/// Floating black pill navigation: lime pill for the current tab, dark circles for the rest.
+class _PillNav extends StatelessWidget {
+  const _PillNav({required this.index, required this.onTap});
+  final int index;
+  final ValueChanged<int> onTap;
+
+  static const _items = [
+    (Icons.home_outlined, Icons.home_rounded, 'Matches'),
+    (Icons.leaderboard_outlined, Icons.leaderboard, 'Standings'),
+    (Icons.storefront_outlined, Icons.storefront, 'Store'),
+    (Icons.groups_outlined, Icons.groups, 'Club'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF151517),
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(color: AppColors.chip),
+          ),
+          child: Row(children: [
+            for (var i = 0; i < _items.length; i++)
+              Expanded(
+                flex: i == index ? 2 : 1,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: Semantics(
+                    button: true,
+                    selected: i == index,
+                    label: _items[i].$3,
+                    child: ExcludeSemantics(
+                      child: Tooltip(
+                        message: _items[i].$3,
+                        child: Material(
+                          color: i == index ? AppColors.primary : AppColors.chip,
+                          shape: const StadiumBorder(),
+                          child: InkWell(
+                            customBorder: const StadiumBorder(),
+                            onTap: () => onTap(i),
+                            child: SizedBox(
+                              height: 54,
+                              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                Icon(i == index ? _items[i].$2 : _items[i].$1,
+                                    size: 26,
+                                    color: i == index ? AppColors.onPrimary : Colors.white),
+                                if (i == index) ...[
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(_items[i].$3,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            color: AppColors.onPrimary,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14)),
+                                  ),
+                                ],
+                              ]),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+        ),
       ),
     );
   }
