@@ -1,0 +1,30 @@
+# Locally supplied project plans and specifications. Keep these out of commits.
+/BACKEND.md
+/FRONTEND.md
+/NaSCon 26 App Dev Part 1-1.pdf
+/Official_Participant_Rules_Booklet.pdf
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Generated test/build output
+.coverage
+coverage_raw.json
+htmlcov/
+build/
+dist/
+
+# Local editor and OS metadata
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

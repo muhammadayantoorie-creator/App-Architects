@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+SQLAlchemy>=2,<3
+psycopg[binary]
+redis
+PyJWT
+reportlab
+pydantic>=2,<3
+pytest
+pytest-cov
+httpx
