@@ -11,7 +11,12 @@ import 'ui/shell.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final state = AppState();
-  await state.init();
+  try {
+    await state.init();
+  } catch (e, st) {
+    // Never block the first frame: the app still opens (sign-in) if local setup fails.
+    debugPrint('init failed: $e\n$st');
+  }
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: state),
