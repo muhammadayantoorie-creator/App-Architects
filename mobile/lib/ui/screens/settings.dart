@@ -6,6 +6,7 @@ import '../../core/config.dart';
 import '../../core/nav.dart';
 import '../../data/app_state.dart';
 import '../widgets/common.dart';
+import '../widgets/network_chip.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -86,7 +87,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final s = context.watch<AppState>();
     final t = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+          title: const Text('Settings'), actions: [if (s.loggedIn) const NetworkChip()]),
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(16), children: [
           Text('Server', style: t.textTheme.titleMedium),
