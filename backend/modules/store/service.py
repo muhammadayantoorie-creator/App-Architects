@@ -454,13 +454,19 @@ def get_inventory(session: Session, variant_id: str) -> dict[str, Any]:
     return {"variant_id": variant.variant_id, "stock": variant.stock, "reserved": variant.reserved}
 
 
-def list_products(session: Session) -> dict[str, Any]:
+def list_products(session: Session, tenant_id: str | None = None) -> dict[str, Any]:
+    products_query = select(Product)
+    if tenant_id is not None:
+        products_query = products_query.where(Product.tenant_id == tenant_id)
     products = session.scalars(
-        select(Product).order_by(Product.position, Product.product_id)
+        products_query.order_by(Product.position, Product.product_id)
     ).all()
+    product_ids = [product.product_id for product in products]
     variants = session.scalars(
-        select(Variant).order_by(Variant.product_id, Variant.position, Variant.variant_id)
-    ).all()
+        select(Variant)
+        .where(Variant.product_id.in_(product_ids))
+        .order_by(Variant.product_id, Variant.position, Variant.variant_id)
+    ).all() if product_ids else []
     by_product: dict[str, list[dict[str, Any]]] = {}
     for v in variants:
         by_product.setdefault(v.product_id, []).append(

@@ -113,6 +113,41 @@ def test_store_and_checkout(client, mgr, viewer):
     assert r.json()["receipt"]["pdf_base64"]
 
 
+def test_store_app_routes_enforce_tenant_and_customer(client, mgr, org):
+    from backend.core.db import SessionLocal
+    from backend.modules.store.models import Product, Variant
+
+    with SessionLocal.begin() as session:
+        session.add(Product(product_id="beta-product", tenant_id="tenant-beta", name="Beta shirt",
+                            category="apparel", description="Beta only", position=9))
+        session.flush()
+        session.add(Variant(variant_id="beta-variant", product_id="beta-product", label="M",
+                            price_minor=10000, currency="PKR", stock=2, reserved=0, position=0))
+
+    manager_items = client.get("/api/v1/store/products", headers=mgr).json()["items"]
+    admin = _login(client, "admin@nascon.test")
+    admin_items = client.get("/api/v1/store/products", headers=admin).json()["items"]
+    assert "beta-product" not in {item["product_id"] for item in manager_items}
+    assert "beta-product" in {item["product_id"] for item in admin_items}
+
+    order = {"order_id": "tenant-checkout", "customer_id": "forged-customer",
+             "items": [{"variant_id": "beta-variant", "quantity": 1}],
+             "discount_code": None, "payment": {"token": "tok_success"}}
+    assert_error(client.post("/api/v1/checkout", json=order, headers=mgr), 403, "FORBIDDEN")
+    order["items"][0]["variant_id"] = "demo-var-scarf-std"
+    paid = client.post("/api/v1/checkout", json=order, headers=mgr)
+    assert paid.status_code == 201, paid.text
+    assert paid.json()["receipt"]["payload"]["customer_id"] == "user-manager"
+
+    assert_error(client.post("/api/v1/matches/demo-match-4/pinned-product",
+                             json={"product_id": "beta-product"}, headers=org), 403, "FORBIDDEN")
+    pin = client.post("/api/v1/matches/demo-match-4/pinned-product",
+                      json={"product_id": "demo-prod-scarf"}, headers=org)
+    assert pin.status_code == 200, pin.text
+    detail = client.get("/api/v1/matches/demo-match-4", headers=mgr).json()
+    assert detail["pinned_product"]["product_id"] == "demo-prod-scarf"
+
+
 def test_offline_sync_via_app_route(client, org):
     rows = client.get("/api/v1/leagues/demo-league-ui/fixtures", headers=org).json()["fixtures"]
     live = next(r for r in rows if r["status"] == "in_progress")

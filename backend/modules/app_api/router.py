@@ -120,11 +120,11 @@ def _scheduled_at(session, match_id: str) -> str | None:
         return None
 
 
-def _pinned(session, match_id: str) -> dict[str, Any] | None:
+def _pinned(session, match_id: str, tenant_id: str | None) -> dict[str, Any] | None:
     pin = session.get(PinnedProduct, match_id)
     if pin is None:
         return None
-    for product in _products(session):
+    for product in _products(session, tenant_id):
         if product["product_id"] == pin.product_id:
             v = product["variants"][0] if product["variants"] else {}
             return {
@@ -136,10 +136,10 @@ def _pinned(session, match_id: str) -> dict[str, Any] | None:
     return None
 
 
-def _products(session) -> list[dict[str, Any]]:
+def _products(session, tenant_id: str | None = None) -> list[dict[str, Any]]:
     from backend.modules.store.service import list_products
 
-    return list_products(session)["items"]
+    return list_products(session, tenant_id)["items"]
 
 
 def _match_detail(session, match_id: str) -> dict[str, Any]:
@@ -155,6 +155,7 @@ def _match_detail(session, match_id: str) -> dict[str, Any]:
             venue = {"name": club.home_venue_name}
     except Exception:
         pass
+    league = session.get(League, stream.league_id) if stream and stream.league_id else None
     return {
         "match_id": proj["match_id"],
         "league_id": proj.get("league_id"),
@@ -167,7 +168,7 @@ def _match_detail(session, match_id: str) -> dict[str, Any]:
         "home": {**proj["home"], "name": names[proj["home"]["team_id"]]},
         "away": {**proj["away"], "name": names[proj["away"]["team_id"]]},
         "events": proj["events"],
-        "pinned_product": _pinned(session, match_id),
+        "pinned_product": _pinned(session, match_id, league.tenant_id if league else None),
         "league_visible": stream is not None,
     }
 
@@ -285,9 +286,10 @@ def player_history(player_id: str, _p: dict = Depends(current_principal)) -> dic
 
 
 @router.get("/store/products")
-def products(_p: dict = Depends(current_principal)) -> dict[str, Any]:
+def products(p: dict = Depends(current_principal)) -> dict[str, Any]:
     with SessionLocal() as session:
-        return {"items": _products(session)}
+        tenant_id = None if p.get("role") == ADMIN else (p.get("tenant_id") or "")
+        return {"items": _products(session, tenant_id)}
 
 
 # --------------------------------------------------------------------------- mutations
@@ -295,11 +297,24 @@ def products(_p: dict = Depends(current_principal)) -> dict[str, Any]:
 
 @router.post("/checkout")
 def checkout(body: Any = Body(...), p: dict = Depends(current_principal)) -> JSONResponse:
-    from backend.modules.store.service import checkout as do_checkout
+    from backend.modules.store.models import Product, Variant
+    from backend.modules.store.service import checkout as do_checkout, parse_checkout
 
     if p.get("role") == "viewer":
         raise _forbid("Viewer accounts cannot buy.")
-    status, response = do_checkout(body)
+    request_body = {**body, "customer_id": _uid(p)} if isinstance(body, dict) else body
+    parsed = parse_checkout(request_body)
+    if p.get("role") != ADMIN:
+        with SessionLocal() as session:
+            variant_ids = [variant_id for variant_id, _ in parsed.items]
+            rows = session.execute(
+                select(Variant.variant_id, Product.tenant_id)
+                .join(Product, Product.product_id == Variant.product_id)
+                .where(Variant.variant_id.in_(variant_ids))
+            )
+            if any(tenant_id != p.get("tenant_id") for _, tenant_id in rows):
+                raise _forbid("Product belongs to another tenant.")
+    status, response = do_checkout(request_body)
     return JSONResponse(status_code=status, content=response)
 
 
@@ -430,6 +445,8 @@ def offline_sync(body: Any = Body(...), p: dict = Depends(current_principal)) ->
 
 @router.post("/matches/{match_id}/pinned-product")
 def pin_product(match_id: str, body: Any = Body(...), p: dict = Depends(current_principal)) -> dict[str, Any]:
+    from backend.modules.store.models import Product
+
     product_id = body.get("product_id") if isinstance(body, dict) else None
     if not isinstance(product_id, str):
         raise ApiError(400, "VALIDATION_ERROR", "product_id is required", {"fields": ["product_id"]})
@@ -439,8 +456,12 @@ def pin_product(match_id: str, body: Any = Body(...), p: dict = Depends(current_
             raise ApiError(404, "MATCH_NOT_FOUND", f"Match {match_id} does not exist.", {"match_id": match_id})
         if not _can_score(p, stream.league_id):
             raise _forbid()
-        if not any(x["product_id"] == product_id for x in _products(session)):
+        league = session.get(League, stream.league_id) if stream.league_id else None
+        product = session.get(Product, product_id)
+        if product is None:
             raise ApiError(404, "NOT_FOUND", f"Product {product_id} does not exist.", {"product_id": product_id})
+        if league is not None and product.tenant_id != league.tenant_id:
+            raise _forbid("Product belongs to another tenant.")
         pin = session.get(PinnedProduct, match_id)
         if pin is None:
             session.add(PinnedProduct(match_id=match_id, product_id=product_id))
