@@ -221,13 +221,17 @@ def _check_model_limit(
             )
 
     if sport.scoring_model == "round":
-        rounds_won = sum(
-            sport.config["scoring_events"][event.payload["event_type"]]["rounds"]
-            for event in active
-            if event.event_type == "score" and event.payload["team_id"] == team_id
-        )
+        # Once EITHER side holds a majority of best_of, no further rounds.
+        rounds_won: dict[str, int] = {}
+        for event in active:
+            if event.event_type != "score":
+                continue
+            side = event.payload["team_id"]
+            rounds_won[side] = rounds_won.get(side, 0) + int(
+                sport.config["scoring_events"][event.payload["event_type"]]["rounds"]
+            )
         required = (periods["best_of"] + 1) // 2
-        if rounds_won >= required:
+        if max(rounds_won.values(), default=0) >= required:
             raise _api_error(
                 409,
                 "SERIES_ALREADY_DECIDED",
