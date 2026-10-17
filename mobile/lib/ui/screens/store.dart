@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/config.dart';
 import '../../core/formatters.dart';
+import '../../data/app_state.dart';
+import '../../data/cart.dart';
 import '../../data/repository.dart';
+import 'checkout.dart';
 import '../widgets/common.dart';
 import '../widgets/loader.dart';
 import 'product.dart';
@@ -33,18 +37,87 @@ class _StoreTabState extends State<StoreTab> with Loader {
             ),
           );
         }
-        return RefreshIndicator(
-          onRefresh: reload,
-          child: ListView(padding: const EdgeInsets.all(16), children: [
-            for (final p in items)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: ProductTile(product: p),
-              ),
-          ]),
-        );
+        return Column(children: [
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: reload,
+              child: ListView(padding: const EdgeInsets.all(16), children: [
+                for (final p in items)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: ProductTile(product: p),
+                  ),
+              ]),
+            ),
+          ),
+          const _CartBar(),
+        ]);
       });
 }
+
+class _CartBar extends StatelessWidget {
+  const _CartBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final cart = context.watch<Cart>();
+    final canBuy = context.select<AppState, bool>((s) => s.canBuy);
+    if (cart.isEmpty || !canBuy) return const SizedBox.shrink();
+    final t = Theme.of(context);
+    return Material(
+      color: t.colorScheme.secondaryContainer,
+      child: InkWell(
+        onTap: () => Navigator.push(
+            context, MaterialPageRoute<void>(builder: (_) => const CheckoutScreen())),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(children: [
+            Icon(Icons.shopping_cart, color: t.colorScheme.onSecondaryContainer,
+                semanticLabel: 'Cart'),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Cart · ${cart.count} ${cart.count == 1 ? 'item' : 'items'} · ${money(cart.totalMinor, cart.lines.first.currency)}',
+                style: t.textTheme.titleSmall?.copyWith(color: t.colorScheme.onSecondaryContainer),
+              ),
+            ),
+            Text('View cart',
+                style: t.textTheme.labelLarge?.copyWith(color: t.colorScheme.onSecondaryContainer)),
+            Icon(Icons.chevron_right, color: t.colorScheme.onSecondaryContainer,
+                semanticLabel: 'View cart'),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// App-bar cart icon with item count.
+class CartButton extends StatelessWidget {
+  const CartButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final count = context.watch<Cart>().count;
+    return IconButton(
+      tooltip: count == 0 ? 'Cart (empty)' : 'Cart, $count items',
+      onPressed: () => Navigator.push(
+          context, MaterialPageRoute<void>(builder: (_) => const CheckoutScreen())),
+      icon: Badge(
+        isLabelVisible: count > 0,
+        label: Text('$count'),
+        child: Icon(Icons.shopping_cart_outlined,
+            semanticLabel: count == 0 ? 'Cart (empty)' : 'Cart, $count items'),
+      ),
+    );
+  }
+}
+
+IconData categoryIcon(String? category) => switch (category) {
+      'apparel' => Icons.checkroom,
+      'digital' || 'digital_items' || 'digital_item' => Icons.download_for_offline_outlined,
+      _ => Icons.shopping_bag_outlined,
+    };
 
 int totalStock(Map<String, dynamic> p) =>
     asList(p['variants']).fold(0, (n, v) => n + ((v['stock'] as num?)?.toInt() ?? 0));
@@ -87,8 +160,8 @@ class ProductTile extends StatelessWidget {
               height: 56,
               decoration: BoxDecoration(
                   color: t.colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(12)),
-              child: Icon(Icons.checkroom, color: t.colorScheme.onSecondaryContainer,
-                  semanticLabel: 'Product'),
+              child: Icon(categoryIcon(product['category'] as String?),
+                  color: t.colorScheme.onSecondaryContainer, semanticLabel: 'Product'),
             ),
             const SizedBox(width: 12),
             Expanded(

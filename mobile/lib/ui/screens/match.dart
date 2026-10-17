@@ -206,6 +206,8 @@ String eventTitle(Map<String, dynamic> e, Map<dynamic, dynamic> names) {
     'match_start' => 'Match started',
     'match_end' => 'Match ended',
     'compensation' => 'Correction${p['reason'] != null ? ': ${p['reason']}' : ''}',
+    'discipline' => 'Fair-play ${p['points'] ?? ''}${team != null ? ' — $team' : ''}',
+    'tiebreak_winner' => 'Tie-break won${team != null ? ' — $team' : ''}',
     _ => '${humanize(e['type'] as String?)}${team != null ? ' — $team' : ''}',
   };
 }
@@ -224,6 +226,8 @@ class _EventTile extends StatelessWidget {
       'match_start' => Icons.play_arrow,
       'match_end' => Icons.flag,
       'compensation' => Icons.undo,
+      'discipline' => Icons.style,
+      'tiebreak_winner' => Icons.emoji_events_outlined,
       _ => Icons.circle_outlined,
     };
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

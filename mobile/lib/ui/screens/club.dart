@@ -311,23 +311,48 @@ class _PlayerHistoryScreenState extends State<PlayerHistoryScreen> with Loader {
         appBar: AppBar(title: Text(widget.name), actions: const [NetworkChip()]),
         body: SafeArea(
           child: loadedBody(context, (d) {
-            final items = d is List ? asList(d) : asList(asMap(d)['items'] ?? asMap(d)['history']);
+            final m = asMap(d);
+            final items = d is List ? asList(d) : asList(m['history'] ?? m['items']);
             if (items.isEmpty) {
               return const EmptyState(
                   icon: Icons.history, message: 'No transfers, loans or releases recorded yet.');
             }
+            final t = Theme.of(context);
             return ListView(padding: const EdgeInsets.all(16), children: [
+              if (m.containsKey('current_squad_id'))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                      m['current_squad_id'] == null
+                          ? 'Currently not registered with a squad.'
+                          : 'Current squad: ${m['current_squad_id']}'
+                              '${m['parent_squad_id'] != null ? ' (on loan from ${m['parent_squad_id']})' : ''}',
+                      style: t.textTheme.titleSmall),
+                ),
               for (final h in items.reversed)
                 Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
-                    leading: const Icon(Icons.swap_horiz, semanticLabel: 'Roster change'),
-                    title: Text(humanize('${h['type'] ?? h['action'] ?? 'Change'}')),
+                    leading: Icon(
+                        switch (h['action'] ?? h['type']) {
+                          'loan' => Icons.schedule_send,
+                          'loan_return' => Icons.keyboard_return,
+                          'release' => Icons.logout,
+                          'add' => Icons.person_add_alt,
+                          _ => Icons.swap_horiz,
+                        },
+                        semanticLabel: 'Roster change'),
+                    title: Text(humanize('${h['action'] ?? h['type'] ?? 'Change'}')),
                     subtitle: Text([
+                      if (h['from_squad_id'] != null || h['to_squad_id'] != null)
+                        '${h['from_squad_id'] ?? '—'} → ${h['to_squad_id'] ?? 'released'}',
                       if (h['effective_date'] != null) 'Effective ${h['effective_date']}',
-                      if (h['to_squad_id'] != null) 'To ${h['to_squad_id']}',
-                      if (h['reason'] != null) '${h['reason']}',
-                    ].join(' · ')),
+                      if (h['state'] == 'deferred_until_match_end') 'After current match',
+                      if ((h['why'] ?? h['reason']) != null) 'Why: ${h['why'] ?? h['reason']}',
+                      if ((h['who'] ?? h['requested_by']) != null) 'By ${h['who'] ?? h['requested_by']}',
+                      if (parseDate(h['when']) != null) dateTimeLabel(parseDate(h['when'])!),
+                    ].join('\n')),
+                    isThreeLine: true,
                   ),
                 ),
             ]);

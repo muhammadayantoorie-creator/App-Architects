@@ -42,6 +42,7 @@ class _ScoringScreenState extends State<ScoringScreen> {
   bool _fromCache = false;
   DateTime? _fetchedAt;
   List<String> _keys = [];
+  bool _drawAllowed = true;
   String _side = 'home';
   bool _loading = true;
   bool _busy = false;
@@ -100,15 +101,19 @@ class _ScoringScreenState extends State<ScoringScreen> {
     }
     final sportId = m?['sport_id'] as String? ?? _s.sportIdFor(widget.leagueId);
     var keys = <String>[];
+    var drawAllowed = true;
     if (sportId != null) {
       try {
-        keys = scoringKeys((await _s.repo.sport(sportId)).data);
+        final sport = asMap((await _s.repo.sport(sportId)).data);
+        keys = scoringKeys(sport);
+        drawAllowed = sport['draw_allowed'] != false && sport['allows_draw'] != false;
       } catch (_) {}
     }
     if (!mounted) return;
     setState(() {
       _match = m;
       _keys = keys;
+      _drawAllowed = drawAllowed;
       _loading = false;
       _error = m == null ? offlineReadMessage : null;
     });
@@ -167,11 +172,13 @@ class _ScoringScreenState extends State<ScoringScreen> {
   Future<void> _correct() async {
     final names = {_home['team_id']: _home['name'], _away['team_id']: _away['name']};
     final events = asList(_match?['events'])
-        .where((e) => e['type'] == 'score' && e['compensated'] != true)
+        .where((e) =>
+            const ['score', 'discipline', 'tiebreak_winner'].contains(e['type']) &&
+            e['compensated'] != true)
         .toList()
       ..sort((a, b) => ((b['sequence'] ?? 0) as num).compareTo((a['sequence'] ?? 0) as num));
     if (events.isEmpty) {
-      showSnack('There are no score events to correct.', error: true);
+      showSnack('There are no events that can be corrected yet.', error: true);
       return;
     }
     final picked = await showModalBottomSheet<Map<String, dynamic>>(
@@ -324,6 +331,29 @@ class _ScoringScreenState extends State<ScoringScreen> {
                           ),
                       ]);
                     }),
+                  if (!_drawAllowed) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                        "This sport can't end in a draw. If scores are level, record who won the tie-break before ending the match.",
+                        style: t.textTheme.bodySmall),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _busy
+                          ? null
+                          : () {
+                              final team = _side == 'home' ? _home : _away;
+                              _send(
+                                type: 'tiebreak_winner',
+                                payload: {'team_id': team['team_id']},
+                                confirmTitle: 'Record tie-break winner?',
+                                label: 'Tie-break won by ${team['name']}',
+                                successText: 'Tie-break winner recorded.',
+                              );
+                            },
+                      icon: const Icon(Icons.emoji_events_outlined, semanticLabel: 'Tie-break winner'),
+                      label: Text('Tie-break won by ${(_side == 'home' ? _home : _away)['name']}'),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
                     onPressed: _busy ? null : _correct,
