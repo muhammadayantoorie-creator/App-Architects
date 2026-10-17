@@ -10,7 +10,8 @@ import '../../data/repository.dart';
 import '../widgets/common.dart';
 import '../widgets/loader.dart';
 import '../widgets/network_chip.dart';
-import '../widgets/status_label.dart';
+import '../../core/theme.dart';
+import '../widgets/sports.dart';
 import 'product.dart';
 import 'scoring.dart';
 
@@ -130,69 +131,59 @@ class ScoreHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
     final home = asMap(match['home']);
     final away = asMap(match['away']);
     final d = parseDate(match['scheduled_at']);
     final venue = asMap(match['venue'])['name'];
     final status = match['status'] as String?;
     final showScore = status == 'in_progress' || status == 'completed';
+    const sub = TextStyle(color: Colors.white70, fontSize: 12);
     Widget side(Map<String, dynamic> s, String role) => Expanded(
           child: Column(children: [
+            TeamBadge(
+                teamId: '${s['team_id']}', name: '${s['name'] ?? 'TBC'}', size: 56, light: true, showName: false),
+            const SizedBox(height: 8),
             Text('${s['name'] ?? 'TBC'}',
                 textAlign: TextAlign.center,
-                style: t.textTheme.titleMedium,
                 maxLines: 2,
-                overflow: TextOverflow.ellipsis),
-            Text(role, style: t.textTheme.labelSmall),
-            if (s['overs'] != null)
-              Text('${s['overs']} overs', style: t.textTheme.bodySmall),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(s['overs'] != null ? '$role · ${s['overs']} ov' : role, style: sub),
           ]),
         );
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(children: [
-          StatusLabel(status),
-          const SizedBox(height: 12),
-          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            side(home, 'Home'),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: FittedBox(
-                child: Text(
-                  showScore ? '${scoreText(home)} – ${scoreText(away)}' : 'vs',
-                  style: t.textTheme.displayMedium?.copyWith(fontWeight: FontWeight.bold),
-                  semanticsLabel: showScore
-                      ? '${home['name']} ${scoreText(home)}, ${away['name']} ${scoreText(away)}'
-                      : 'versus',
-                ),
+    return Container(
+      decoration: BoxDecoration(color: AppColors.header, borderRadius: BorderRadius.circular(24)),
+      padding: const EdgeInsets.all(20),
+      child: Column(children: [
+        StatusPill(status: status, time: d),
+        const SizedBox(height: 6),
+        Text(
+          [if (venue != null) '$venue', if (d != null) dateTimeLabel(d)].join(' · '),
+          style: sub,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          side(home, 'Home'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            child: FittedBox(
+              child: Text(
+                showScore ? '${scoreText(home)} - ${scoreText(away)}' : 'vs',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w800,
+                    fontFeatures: [FontFeature.tabularFigures()]),
+                semanticsLabel: showScore
+                    ? '${home['name']} ${scoreText(home)}, ${away['name']} ${scoreText(away)}'
+                    : 'versus',
               ),
             ),
-            side(away, 'Away'),
-          ]),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 16,
-            runSpacing: 4,
-            children: [
-              if (venue != null)
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.place_outlined, size: 16, semanticLabel: 'Venue'),
-                  const SizedBox(width: 4),
-                  Text('$venue'),
-                ]),
-              if (d != null)
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.schedule, size: 16, semanticLabel: 'Kick-off'),
-                  const SizedBox(width: 4),
-                  Text(dateTimeLabel(d)),
-                ]),
-            ],
           ),
+          side(away, 'Away'),
         ]),
-      ),
+      ]),
     );
   }
 }

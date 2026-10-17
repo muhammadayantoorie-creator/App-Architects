@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/formatters.dart';
+import '../../core/theme.dart';
+import '../widgets/sports.dart';
 import '../../data/app_state.dart';
 import '../../data/repository.dart';
 import '../widgets/common.dart';
@@ -99,45 +101,60 @@ class _ClubViewState extends State<ClubView> with Loader {
       loadedBody(context, (d) => _content(context, asMap(d)));
 
   Widget _content(BuildContext context, Map<String, dynamic> club) {
-    final t = Theme.of(context);
     final venue = asMap(club['home_venue']);
     final social = asMap(club['social']);
+    final name = '${club['name'] ?? ''}';
     return DefaultTabController(
       length: 4,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        Container(
+          color: AppColors.header,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           child: Row(children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: t.colorScheme.primaryContainer,
-              child: Icon(Icons.shield, color: t.colorScheme.onPrimaryContainer,
-                  semanticLabel: 'Club crest'),
-            ),
-            const SizedBox(width: 12),
+            TeamBadge(teamId: widget.clubId, name: name, size: 56, light: true, showName: false),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${club['name'] ?? ''}',
-                    style: t.textTheme.titleLarge, overflow: TextOverflow.ellipsis),
-                Text(
-                  [
-                    if (venue['name'] != null) '${venue['name']}',
-                    for (final e in social.entries) '${humanize(e.key)}: ${e.value}',
-                  ].join(' · '),
-                  style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                Text(name,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                if (venue['name'] != null)
+                  Row(children: [
+                    const Icon(Icons.place, size: 14, color: Colors.white70, semanticLabel: 'Venue'),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text('${venue['name']}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    ),
+                  ]),
+                if (social.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Wrap(spacing: 6, runSpacing: 4, children: [
+                    for (final e in social.entries)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: Colors.white24, borderRadius: BorderRadius.circular(10)),
+                        child: Text('${humanize(e.key)} ${e.value}',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                      ),
+                  ]),
+                ],
               ]),
             ),
           ]),
         ),
-        const TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
-          Tab(text: 'Squad'),
-          Tab(text: 'Matches'),
-          Tab(text: 'Staff'),
-          Tab(text: 'History'),
-        ]),
+        const ColoredBox(
+          color: AppColors.bg,
+          child: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
+            Tab(text: 'Squad'),
+            Tab(text: 'Matches'),
+            Tab(text: 'Staff'),
+            Tab(text: 'History'),
+          ]),
+        ),
         Expanded(
           child: TabBarView(children: [
             _squad(context, club),

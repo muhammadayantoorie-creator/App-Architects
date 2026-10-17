@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../../core/config.dart';
 import '../../core/formatters.dart';
+import '../../core/theme.dart';
 import '../../data/app_state.dart';
 import '../../data/cart.dart';
 import '../../data/repository.dart';
+import '../widgets/sports.dart';
 import 'checkout.dart';
 import '../widgets/common.dart';
 import '../widgets/loader.dart';
@@ -38,16 +40,18 @@ class _StoreTabState extends State<StoreTab> with Loader {
           );
         }
         return Column(children: [
+          const ExploreHeading('Store'),
           Expanded(
             child: RefreshIndicator(
               onRefresh: reload,
-              child: ListView(padding: const EdgeInsets.all(16), children: [
-                for (final p in items)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ProductTile(product: p),
-                  ),
-              ]),
+              child: GridView.count(
+                padding: const EdgeInsets.all(12),
+                crossAxisCount: MediaQuery.sizeOf(context).width >= 600 ? 3 : 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.72,
+                children: [for (final p in items) ProductTile(product: p)],
+              ),
             ),
           ),
           const _CartBar(),
@@ -144,6 +148,9 @@ class ProductTile extends StatelessWidget {
         : prices.first == prices.last
             ? money(prices.first, currency)
             : 'From ${money(prices.first, currency)}';
+    final name = '${product['name'] ?? ''}';
+    const tiles = [Color(0xFFD84315), Color(0xFF1565C0), Color(0xFF2E7D32), Color(0xFF6A1B9A), Color(0xFF00838F)];
+    final tile = tiles['${product['product_id']}'.hashCode.abs() % tiles.length];
     return Card(
       child: InkWell(
         onTap: () => Navigator.push(
@@ -152,32 +159,41 @@ class ProductTile extends StatelessWidget {
             builder: (_) => ProductScreen(productId: product['product_id'] as String, product: product),
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                  color: t.colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(12)),
-              child: Icon(categoryIcon(product['category'] as String?),
-                  color: t.colorScheme.onSecondaryContainer, semanticLabel: 'Product'),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${product['name'] ?? ''}', style: t.textTheme.titleMedium),
-                if (product['category'] != null)
-                  Text(humanize(product['category'] as String?), style: t.textTheme.bodySmall),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(
+            child: Container(
+              color: tile,
+              alignment: Alignment.center,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(categoryIcon(product['category'] as String?),
+                    size: 44, color: Colors.white, semanticLabel: humanize(product['category'] as String?)),
                 const SizedBox(height: 4),
-                Text(price, style: t.textTheme.titleSmall),
+                Text(name.isEmpty ? '' : name[0].toUpperCase(),
+                    style: const TextStyle(color: Colors.white70, fontSize: 18, fontWeight: FontWeight.w800)),
               ]),
             ),
-            Text(stockLabel(stock),
-                style: t.textTheme.labelMedium?.copyWith(
-                    color: stock <= 0 ? t.colorScheme.error : t.colorScheme.onSurfaceVariant)),
-          ]),
-        ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Text(price,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.primary)),
+              const SizedBox(height: 2),
+              Text(stock <= 0 ? 'Sold out' : stock <= 5 ? '$stock left' : 'In stock',
+                  style: t.textTheme.bodySmall?.copyWith(
+                      color: stock <= 0 ? AppColors.live : AppColors.textSub,
+                      fontWeight: stock <= 0 ? FontWeight.w700 : null)),
+            ]),
+          ),
+        ]),
       ),
     );
   }

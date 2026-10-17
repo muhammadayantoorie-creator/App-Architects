@@ -23,7 +23,7 @@ class _TenantLogo extends StatelessWidget {
       radius: 18,
       backgroundColor: s.primary,
       child: Text(name.isEmpty ? '?' : name[0].toUpperCase(),
-          style: TextStyle(color: s.onPrimary, fontWeight: FontWeight.bold),
+          style: TextStyle(color: s.onPrimary, fontWeight: FontWeight.w900),
           semanticsLabel: '$name logo'),
     );
     if (url == null || url!.isEmpty) return Center(child: fallback);

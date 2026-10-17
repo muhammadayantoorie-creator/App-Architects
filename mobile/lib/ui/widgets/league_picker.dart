@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme.dart';
 import '../../data/app_state.dart';
 import '../../data/repository.dart';
 
@@ -36,34 +37,44 @@ class _LeaguePickerState extends State<LeaguePicker> {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
-    if (s.leagues.length < 2) {
-      final name = s.leagues.isEmpty ? null : s.leagues.first['name'] as String?;
-      if (name == null) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-        child: Text(name, style: Theme.of(context).textTheme.titleMedium),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: DropdownButtonFormField<String>(
-        key: ValueKey(s.leagueId),
-        initialValue: s.leagueId,
-        isExpanded: true,
-        decoration: const InputDecoration(labelText: 'League', isDense: true),
-        items: [
-          for (final l in s.leagues)
-            DropdownMenuItem(
-              value: l['league_id'] as String,
-              child: Text('${l['name'] ?? l['league_id']}', overflow: TextOverflow.ellipsis),
+    // Green strip continuing the header, with one white chip per league.
+    return Container(
+      width: double.infinity,
+      color: AppColors.bg,
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: s.leagues.isEmpty
+          ? const SizedBox(height: 4)
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
+                for (final l in s.leagues)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Builder(builder: (context) {
+                      final selected = l['league_id'] == s.leagueId;
+                      return ChoiceChip(
+                        label: Text('${l['name'] ?? l['league_id']}'),
+                        selected: selected,
+                        showCheckmark: false,
+                        backgroundColor: AppColors.chip,
+                        selectedColor: AppColors.primary,
+                        side: BorderSide.none,
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        labelStyle: TextStyle(
+                          color: selected ? AppColors.onPrimary : Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        onSelected: (_) async {
+                          final id = l['league_id'] as String;
+                          await s.setLeague(id);
+                          await s.repo.prefetchSport(s.sportIdFor(id));
+                        },
+                      );
+                    }),
+                  ),
+              ]),
             ),
-        ],
-        onChanged: (v) async {
-          if (v == null) return;
-          await s.setLeague(v);
-          await s.repo.prefetchSport(s.sportIdFor(v));
-        },
-      ),
     );
   }
 }

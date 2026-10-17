@@ -48,13 +48,21 @@ All demo accounts use the password `Nascon@26` and exist after every startup and
 ## Tests
 
 ```sh
-pip install -r requirements.txt
 ./run_tests.sh
 ```
 
-Runs the full pytest suite against the real app in-process (SQLite + fake Redis by default; set
-`TEST_DATABASE_URL` / `TEST_REDIS_URL` to use PostgreSQL / Redis) and writes coverage to
-`coverage_raw.json`. Per-area figures are in `COVERAGE.json`; requirement mapping in
+Works on a clean machine with only Docker: the tests start the real FastAPI app in-process on
+SQLite + fake Redis (no PostgreSQL/Redis server needed). If local Python has the requirements it
+runs them directly; otherwise it runs inside the API image:
+
+```sh
+docker compose run --rm --no-deps -T -v "$(pwd):/app" -w /app -e DAY1_SALT=test-salt \
+  api python -m pytest tests -q -p no:cacheprovider --cov=backend --cov-report=term --cov-report=json:coverage_raw.json
+```
+
+(With local Python: `pip install -r requirements.txt && ./run_tests.sh`. Set `TEST_DATABASE_URL` /
+`TEST_REDIS_URL` to run the same tests against PostgreSQL / Redis.) Coverage is written to
+`coverage_raw.json`; per-area figures are in `COVERAGE.json`; requirement mapping in
 `TRACEABILITY.md`.
 
 ## Mobile app

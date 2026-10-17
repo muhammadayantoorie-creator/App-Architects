@@ -8,7 +8,8 @@ import 'package:dio/dio.dart';
 class MockInterceptor extends Interceptor {
   bool enabled = false;
   bool Function() hasNetwork = () => true;
-  final _b = MockBackend();
+  // Built on first demo-mode request only, so normal startup never touches demo data.
+  late final _b = MockBackend();
 
   @override
   Future<void> onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
@@ -89,7 +90,7 @@ class MockBackend {
         'venue': {'name': h == 'club-alpha-1' ? 'Alpha Arena' : '${_teams[h]} Ground'},
         'home': {'team_id': h, 'name': _teams[h], 'score': hs, 'wickets': null, 'overs': null, 'fair_play': 0},
         'away': {'team_id': a, 'name': _teams[a], 'score': as, 'wickets': null, 'overs': null, 'fair_play': 0},
-        'events': <Map<String, dynamic>>[
+        'events': <dynamic>[
           {'sequence': 1, 'event_id': 'e-$id-1', 'type': 'match_init', 'payload': {}, 'compensated': false, 'compensated_by': null},
         ],
         'pinned_product': null,
