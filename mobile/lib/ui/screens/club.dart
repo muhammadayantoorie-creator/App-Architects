@@ -12,6 +12,50 @@ import '../widgets/network_chip.dart';
 import 'fixtures.dart';
 import 'roster_sheet.dart';
 
+/// Light rounded list card (same look as the match and product cards).
+Widget lightTile({
+  required Widget leading,
+  required String title,
+  String? subtitle,
+  IconData? trailing,
+  String? trailingLabel,
+  VoidCallback? onTap,
+  bool threeLine = false,
+}) =>
+    Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: const Color(0xFFF2F2F2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          leading: leading,
+          title: Text(title.toUpperCase(),
+              style: const TextStyle(
+                  fontFamily: condensedFont,
+                  color: Color(0xFF0B0B0B),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800)),
+          subtitle: subtitle == null || subtitle.isEmpty
+              ? null
+              : Text(subtitle, style: const TextStyle(color: Color(0xFF555555))),
+          isThreeLine: threeLine,
+          trailing: trailing == null
+              ? null
+              : CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFF0B0B0B),
+                  child: Icon(trailing, size: 18, color: AppColors.primary, semanticLabel: trailingLabel),
+                ),
+          onTap: onTap,
+        ),
+      ),
+    );
+
+Widget inkCircle(Widget child) =>
+    CircleAvatar(radius: 22, backgroundColor: const Color(0xFF0B0B0B), child: child);
+
 /// Club tab: the user's own club, or a list of league clubs when the user has none.
 class ClubTab extends StatelessWidget {
   const ClubTab({super.key});
@@ -64,19 +108,16 @@ class _ClubListState extends State<_ClubList> with Loader {
       }
       return RefreshIndicator(
         onRefresh: reload,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
-          Text('Clubs', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
+        child: ListView(padding: const EdgeInsets.fromLTRB(12, 0, 12, 16), children: [
+          const ExploreHeading('Clubs'),
           for (final id in ids)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: const Icon(Icons.shield_outlined, semanticLabel: 'Club'),
-                title: Text('${names[id] ?? id}'),
-                trailing: const Icon(Icons.chevron_right, semanticLabel: 'Open club'),
-                onTap: () => Navigator.push(
-                    context, MaterialPageRoute<void>(builder: (_) => ClubScreen(clubId: id))),
-              ),
+            lightTile(
+              leading: TeamBadge(teamId: id, name: '${names[id] ?? id}', size: 44, showName: false),
+              title: '${names[id] ?? id}',
+              trailing: Icons.chevron_right,
+              trailingLabel: 'Open club',
+              onTap: () => Navigator.push(
+                  context, MaterialPageRoute<void>(builder: (_) => ClubScreen(clubId: id))),
             ),
         ]),
       );
@@ -108,17 +149,37 @@ class _ClubViewState extends State<ClubView> with Loader {
       length: 4,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
-          color: AppColors.header,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            color: AppColors.header,
+            image: const DecorationImage(image: AssetImage('assets/stadium.jpg'), fit: BoxFit.cover),
+          ),
+          child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xB3000000), Color(0x66000000), Color(0xCC3E6B0E)],
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
           child: Row(children: [
-            TeamBadge(teamId: widget.clubId, name: name, size: 56, light: true, showName: false),
+            TeamBadge(teamId: widget.clubId, name: name, size: 68, light: true, showName: false),
             const SizedBox(width: 14),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(name,
+                Text(name.toUpperCase(),
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                        fontFamily: condensedFont,
+                        color: Colors.white,
+                        fontSize: 32,
+                        height: 1.0,
+                        fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
                 if (venue['name'] != null)
                   Row(children: [
                     const Icon(Icons.place, size: 14, color: Colors.white70, semanticLabel: 'Venue'),
@@ -145,15 +206,31 @@ class _ClubViewState extends State<ClubView> with Loader {
               ]),
             ),
           ]),
+          ),
         ),
-        const ColoredBox(
-          color: AppColors.bg,
-          child: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
-            Tab(text: 'Squad'),
-            Tab(text: 'Matches'),
-            Tab(text: 'Staff'),
-            Tab(text: 'History'),
-          ]),
+        Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF151517),
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(color: AppColors.chip),
+          ),
+          child: TabBar(
+            indicator: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(30)),
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: Colors.transparent,
+            labelColor: AppColors.onPrimary,
+            unselectedLabelColor: Colors.white,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+            labelPadding: EdgeInsets.zero,
+            tabs: const [
+              Tab(height: 44, text: 'Squad'),
+              Tab(height: 44, text: 'Matches'),
+              Tab(height: 44, text: 'Staff'),
+              Tab(height: 44, text: 'History'),
+            ],
+          ),
         ),
         Expanded(
           child: TabBarView(children: [
@@ -204,29 +281,25 @@ class _ClubViewState extends State<ClubView> with Loader {
           ),
         ],
         for (final p in roster)
-          Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: CircleAvatar(
-                child: Text('${p['position'] ?? '?'}'.toUpperCase(),
-                    style: const TextStyle(fontSize: 12)),
-              ),
-              title: Text('${p['name'] ?? ''}'),
-              subtitle: Text([
-                humanize(p['role'] as String?),
-                if (p['on_loan'] == true) 'On loan',
-              ].where((x) => x.isNotEmpty).join(' · ')),
-              trailing: Icon(canManage ? Icons.swap_horiz : Icons.history,
-                  semanticLabel: canManage ? 'Roster actions' : 'Player history'),
-              onTap: () async {
-                if (canManage) {
-                  final changed = await showRosterSheet(context, club: club, player: p);
-                  if (changed == true) reload();
-                } else {
-                  _openHistory(p);
-                }
-              },
-            ),
+          lightTile(
+            leading: inkCircle(Text('${p['position'] ?? '?'}'.toUpperCase(),
+                style: const TextStyle(
+                    color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900))),
+            title: '${p['name'] ?? ''}',
+            subtitle: [
+              humanize(p['role'] as String?),
+              if (p['on_loan'] == true) 'On loan',
+            ].where((x) => x.isNotEmpty).join(' · '),
+            trailing: canManage ? Icons.swap_horiz : Icons.history,
+            trailingLabel: canManage ? 'Roster actions' : 'Player history',
+            onTap: () async {
+              if (canManage) {
+                final changed = await showRosterSheet(context, club: club, player: p);
+                if (changed == true) reload();
+              } else {
+                _openHistory(p);
+              }
+            },
           ),
       ]),
     );
@@ -239,13 +312,11 @@ class _ClubViewState extends State<ClubView> with Loader {
     }
     return ListView(padding: const EdgeInsets.all(16), children: [
       for (final s in staff)
-        Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: const Icon(Icons.badge_outlined, semanticLabel: 'Staff member'),
-            title: Text('${s['name'] ?? ''}'),
-            subtitle: Text(humanize(s['role'] as String?)),
-          ),
+        lightTile(
+          leading: inkCircle(const Icon(Icons.badge_outlined,
+              color: AppColors.primary, semanticLabel: 'Staff member')),
+          title: '${s['name'] ?? ''}',
+          subtitle: humanize(s['role'] as String?),
         ),
     ]);
   }
@@ -259,15 +330,14 @@ class _ClubViewState extends State<ClubView> with Loader {
       Text('Registration history per player', style: Theme.of(context).textTheme.bodySmall),
       const SizedBox(height: 8),
       for (final p in roster)
-        Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: const Icon(Icons.history, semanticLabel: 'History'),
-            title: Text('${p['name'] ?? ''}'),
-            subtitle: Text('${p['audit_count'] ?? 0} recorded changes'),
-            trailing: const Icon(Icons.chevron_right, semanticLabel: 'Open history'),
-            onTap: () => _openHistory(p),
-          ),
+        lightTile(
+          leading: inkCircle(
+              const Icon(Icons.history, color: AppColors.primary, semanticLabel: 'History')),
+          title: '${p['name'] ?? ''}',
+          subtitle: '${p['audit_count'] ?? 0} recorded changes',
+          trailing: Icons.chevron_right,
+          trailingLabel: 'Open history',
+          onTap: () => _openHistory(p),
         ),
     ]);
   }
@@ -364,10 +434,8 @@ class _PlayerHistoryScreenState extends State<PlayerHistoryScreen> with Loader {
                       style: t.textTheme.titleSmall),
                 ),
               for (final h in items.reversed)
-                Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    leading: Icon(
+                lightTile(
+                    leading: inkCircle(Icon(
                         switch (h['action'] ?? h['type']) {
                           'loan' => Icons.schedule_send,
                           'loan_return' => Icons.keyboard_return,
@@ -375,9 +443,10 @@ class _PlayerHistoryScreenState extends State<PlayerHistoryScreen> with Loader {
                           'add' => Icons.person_add_alt,
                           _ => Icons.swap_horiz,
                         },
-                        semanticLabel: 'Roster change'),
-                    title: Text(humanize('${h['action'] ?? h['type'] ?? 'Change'}')),
-                    subtitle: Text([
+                        color: AppColors.primary,
+                        semanticLabel: 'Roster change')),
+                    title: humanize('${h['action'] ?? h['type'] ?? 'Change'}'),
+                    subtitle: [
                       if (h['from_squad_id'] != null || h['to_squad_id'] != null)
                         '${h['from_squad_id'] ?? '—'} → ${h['to_squad_id'] ?? 'released'}',
                       if (h['effective_date'] != null) 'Effective ${h['effective_date']}',
@@ -385,9 +454,8 @@ class _PlayerHistoryScreenState extends State<PlayerHistoryScreen> with Loader {
                       if ((h['why'] ?? h['reason']) != null) 'Why: ${h['why'] ?? h['reason']}',
                       if ((h['who'] ?? h['requested_by']) != null) 'By ${h['who'] ?? h['requested_by']}',
                       if (parseDate(h['when']) != null) dateTimeLabel(parseDate(h['when'])!),
-                    ].join('\n')),
-                    isThreeLine: true,
-                  ),
+                    ].join('\n'),
+                    threeLine: true,
                 ),
             ]);
           }),
