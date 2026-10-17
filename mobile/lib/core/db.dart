@@ -62,6 +62,8 @@ class AppDb {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
+  Future<void> clearCache() => _db.delete('cache');
+
   Future<void> insertOutbox(OutboxItem item) =>
       _db.insert('outbox', item.toRow(), conflictAlgorithm: ConflictAlgorithm.replace);
 

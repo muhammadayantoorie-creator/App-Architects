@@ -78,6 +78,8 @@ class AppState extends ChangeNotifier {
       await db.setSetting('device_id', deviceId);
     }
     leagueId = await db.getSetting('league_id') ?? defaultLeagueId;
+    api.mock.enabled = await db.getSetting('demo') == '1';
+    api.mock.hasNetwork = () => _hasNetwork;
     api.onUnauthorized = () => logout(message: friendlyMessage('UNAUTHENTICATED'));
     api.onReachability = _onReachability;
     pending = await db.pendingCount();
@@ -102,6 +104,19 @@ class AppState extends ChangeNotifier {
   Future<void> setServerUrl(String url) async {
     api.baseUrl = url.trim();
     await db.setSetting('server_url', api.baseUrl);
+    notifyListeners();
+    unawaited(_probe());
+  }
+
+  bool get demo => api.mock.enabled;
+
+  /// Built-in demo data instead of a server. Switching clears cached data from the other source.
+  Future<void> setDemo(bool value) async {
+    if (value == demo) return;
+    api.mock.enabled = value;
+    await db.setSetting('demo', value ? '1' : null);
+    await db.clearCache();
+    await logout();
     notifyListeners();
     unawaited(_probe());
   }

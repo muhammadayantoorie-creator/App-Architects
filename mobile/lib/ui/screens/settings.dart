@@ -140,6 +140,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
           const Divider(height: 32),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: const Icon(Icons.science_outlined, semanticLabel: 'Demo data'),
+            title: const Text('Use demo data (no server)'),
+            subtitle: const Text(
+                'Runs the app on built-in sample data. Turn off to use the server above. Switching signs you out.'),
+            value: s.demo,
+            onChanged: (v) async {
+              await s.setDemo(v);
+              showSnack(v
+                  ? 'Demo data on. Sign in with any quick-login account.'
+                  : 'Demo data off. The app now uses the server.');
+            },
+          ),
+          const Divider(height: 32),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.info_outline, semanticLabel: 'App version'),

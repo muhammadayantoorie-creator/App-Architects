@@ -145,7 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                   ]),
                   const SizedBox(height: 24),
-                  Text('Server: ${s.api.baseUrl}',
+                  Text(s.demo ? 'Demo data mode — no server needed' : 'Server: ${s.api.baseUrl}',
                       style: t.textTheme.bodySmall
                           ?.copyWith(color: t.colorScheme.onSurfaceVariant)),
                 ]),

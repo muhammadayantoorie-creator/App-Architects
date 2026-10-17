@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import 'error_messages.dart';
+import 'mock_backend.dart';
 
 class ApiException implements Exception {
   ApiException(this.code, {this.status, this.details, this.serverMessage});
@@ -28,9 +29,12 @@ class ApiClient {
           receiveTimeout: const Duration(seconds: 15),
           contentType: Headers.jsonContentType,
           responseType: ResponseType.json,
-        ));
+        )) {
+    dio.interceptors.add(mock);
+  }
 
   final Dio dio;
+  final mock = MockInterceptor();
   String baseUrl = '';
   String? token;
   void Function()? onUnauthorized;
