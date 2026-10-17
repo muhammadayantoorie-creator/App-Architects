@@ -77,7 +77,7 @@ class LiveService {
   }
 
   Future<void> _connect() async {
-    if (_refs == 0 || _running) return;
+    if (_refs == 0 || _running || s.api.mock.enabled) return;
     final token = s.api.token;
     if (!s.online || token == null || _league == null) {
       _scheduleRetry();
