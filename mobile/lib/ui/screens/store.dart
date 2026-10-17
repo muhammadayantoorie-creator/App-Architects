@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../data/app_state.dart';
 import '../../data/cart.dart';
 import '../../data/repository.dart';
+import '../widgets/sports.dart';
 import 'checkout.dart';
 import '../widgets/common.dart';
 import '../widgets/loader.dart';
@@ -39,6 +40,7 @@ class _StoreTabState extends State<StoreTab> with Loader {
           );
         }
         return Column(children: [
+          const ExploreHeading('Store'),
           Expanded(
             child: RefreshIndicator(
               onRefresh: reload,

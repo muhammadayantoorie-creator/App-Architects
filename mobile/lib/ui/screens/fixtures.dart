@@ -64,6 +64,7 @@ class _FixturesTabState extends State<FixturesTab> with Loader {
       WidgetsBinding.instance.addPostFrameCallback((_) => reload());
     }
     return Column(children: [
+      const ExploreHeading('Leagues'),
       const LeaguePicker(),
       Expanded(child: loadedBody(context, (data) => _list(context, data))),
     ]);

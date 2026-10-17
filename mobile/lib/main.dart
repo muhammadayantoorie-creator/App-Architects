@@ -6,17 +6,23 @@ import 'core/theme.dart';
 import 'data/app_state.dart';
 import 'data/cart.dart';
 import 'ui/screens/login.dart';
+import 'ui/screens/splash.dart';
 import 'ui/shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Loading screen first, while local storage, the saved session and connectivity initialise.
+  runApp(const SplashApp());
+  final started = DateTime.now();
   final state = AppState();
   try {
     await state.init();
   } catch (e, st) {
-    // Never block the first frame: the app still opens (sign-in) if local setup fails.
+    // Never block startup: the app still opens (sign-in) if local setup fails.
     debugPrint('init failed: $e\n$st');
   }
+  final remaining = const Duration(milliseconds: 1500) - DateTime.now().difference(started);
+  if (remaining > Duration.zero) await Future<void>.delayed(remaining);
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: state),

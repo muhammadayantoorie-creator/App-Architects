@@ -88,8 +88,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(16),
+                      color: AppColors.header,
+                      borderRadius: BorderRadius.circular(24),
                     ),
                     child: Row(children: [
                       ClipRRect(
@@ -104,7 +104,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               style: TextStyle(
                                   color: Colors.white, fontSize: 34, fontWeight: FontWeight.w800)),
                           Text('Leagues · Clubs · Store',
-                              style: TextStyle(color: Colors.white70, fontSize: 14)),
+                              style: TextStyle(
+                                  color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.w700)),
                         ]),
                       ),
                     ]),

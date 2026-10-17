@@ -152,7 +152,7 @@ class ScoreHeader extends StatelessWidget {
           ]),
         );
     return Container(
-      decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: AppColors.header, borderRadius: BorderRadius.circular(24)),
       padding: const EdgeInsets.all(20),
       child: Column(children: [
         StatusPill(status: status, time: d),

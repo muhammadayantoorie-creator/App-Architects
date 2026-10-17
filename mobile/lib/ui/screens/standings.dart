@@ -39,6 +39,7 @@ class _StandingsTabState extends State<StandingsTab> with Loader {
       WidgetsBinding.instance.addPostFrameCallback((_) => reload());
     }
     return Column(children: [
+      const ExploreHeading('Standings'),
       const LeaguePicker(),
       Expanded(child: loadedBody(context, (d) => _table(context, asMap(d)))),
     ]);
@@ -82,8 +83,8 @@ class _StandingsTabState extends State<StandingsTab> with Loader {
                 dataRowMinHeight: 48,
                 dataRowMaxHeight: 52,
                 headingRowColor: const WidgetStatePropertyAll(AppColors.primary),
-                headingTextStyle:
-                    const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                headingTextStyle: const TextStyle(
+                    color: AppColors.onPrimary, fontSize: 12, fontWeight: FontWeight.w800),
                 columns: const [
                   DataColumn(label: Text('#'), numeric: true),
                   DataColumn(label: Text('TEAM')),
@@ -117,7 +118,7 @@ class _StandingsTabState extends State<StandingsTab> with Loader {
     final name = '${names[teamId] ?? teamId ?? ''}';
     final rank = (r['rank'] as num?)?.toInt() ?? 0;
     return DataRow(
-      color: WidgetStatePropertyAll(rank.isEven ? AppColors.rowAlt : Colors.white),
+      color: WidgetStatePropertyAll(rank.isEven ? AppColors.rowAlt : AppColors.card),
       onSelectChanged: teamId == null
           ? null
           : (_) => Navigator.push(

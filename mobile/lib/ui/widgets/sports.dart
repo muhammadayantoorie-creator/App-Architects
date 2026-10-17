@@ -83,22 +83,60 @@ class StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg, label, dot) = switch (status) {
-      'in_progress' => (AppColors.live, Colors.white, 'LIVE', true),
-      'completed' => (const Color(0xFF37474F), Colors.white, 'FT', false),
-      'upcoming' => (const Color(0xFFE0E0E0), AppColors.textMain, time == null ? 'UPCOMING' : hm(time!), false),
-      _ => (AppColors.accent, Colors.black, humanize(status).toUpperCase(), false),
+      'in_progress' => (AppColors.primary, AppColors.onPrimary, 'Live', true),
+      'completed' => (AppColors.chip, Colors.white, 'FT', false),
+      'upcoming' => (Colors.white, AppColors.onPrimary, time == null ? 'UPCOMING' : hm(time!), false),
+      _ => (const Color(0xFFFFC107), Colors.black, humanize(status).toUpperCase(), false),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         if (dot) ...[
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: fg, shape: BoxShape.circle)),
+          Container(width: 7, height: 7, decoration: const BoxDecoration(color: AppColors.live, shape: BoxShape.circle)),
           const SizedBox(width: 4),
         ],
         Text(label,
             style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
       ]),
+    );
+  }
+}
+
+/// Big "Explore / LEAGUES" title. Hidden on short screens (e.g. landscape) to keep lists usable.
+class ExploreHeading extends StatelessWidget {
+  const ExploreHeading(this.word, {super.key});
+  final String word;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).height < 560) return const SizedBox.shrink();
+    return Semantics(
+      header: true,
+      label: 'Explore $word',
+      child: ExcludeSemantics(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Explore',
+                style: TextStyle(
+                    color: AppColors.textSub, fontSize: 24, fontWeight: FontWeight.w300, height: 1.1)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                word.toUpperCase(),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 52,
+                    fontWeight: FontWeight.w900,
+                    height: 1.0,
+                    letterSpacing: -1.5),
+              ),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }

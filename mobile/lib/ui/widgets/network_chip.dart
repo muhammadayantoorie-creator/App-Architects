@@ -43,7 +43,7 @@ class NetworkChip extends StatelessWidget {
                   Text(text,
                       semanticsLabel: 'Network status $text',
                       style: const TextStyle(
-                          color: AppColors.textMain, fontSize: 12, fontWeight: FontWeight.w700)),
+                          color: AppColors.onPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
                 ]),
               ),
             ),

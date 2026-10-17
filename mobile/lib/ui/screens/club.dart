@@ -108,8 +108,8 @@ class _ClubViewState extends State<ClubView> with Loader {
       length: 4,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
-          color: AppColors.primary,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          color: AppColors.header,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           child: Row(children: [
             TeamBadge(teamId: widget.clubId, name: name, size: 56, light: true, showName: false),
             const SizedBox(width: 14),
@@ -147,7 +147,7 @@ class _ClubViewState extends State<ClubView> with Loader {
           ]),
         ),
         const ColoredBox(
-          color: Colors.white,
+          color: AppColors.bg,
           child: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
             Tab(text: 'Squad'),
             Tab(text: 'Matches'),

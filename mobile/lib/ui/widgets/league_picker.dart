@@ -40,8 +40,8 @@ class _LeaguePickerState extends State<LeaguePicker> {
     // Green strip continuing the header, with one white chip per league.
     return Container(
       width: double.infinity,
-      color: AppColors.primary,
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      color: AppColors.bg,
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
       child: s.leagues.isEmpty
           ? const SizedBox(height: 4)
           : SingleChildScrollView(
@@ -56,11 +56,13 @@ class _LeaguePickerState extends State<LeaguePicker> {
                         label: Text('${l['name'] ?? l['league_id']}'),
                         selected: selected,
                         showCheckmark: false,
-                        backgroundColor: AppColors.primaryDark,
-                        selectedColor: Colors.white,
-                        side: BorderSide(color: selected ? Colors.white : Colors.white54),
+                        backgroundColor: AppColors.chip,
+                        selectedColor: AppColors.primary,
+                        side: BorderSide.none,
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         labelStyle: TextStyle(
-                          color: selected ? AppColors.primary : Colors.white,
+                          color: selected ? AppColors.onPrimary : Colors.white,
                           fontWeight: FontWeight.w700,
                         ),
                         onSelected: (_) async {
