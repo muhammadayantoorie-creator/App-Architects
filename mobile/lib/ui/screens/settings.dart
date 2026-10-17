@@ -15,9 +15,15 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late final _url = TextEditingController(text: context.read<AppState>().api.baseUrl);
+  late final TextEditingController _url;
   bool _testing = false;
   (bool, String)? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    _url = TextEditingController(text: context.read<AppState>().api.baseUrl);
+  }
 
   @override
   void dispose() {

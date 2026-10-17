@@ -18,7 +18,13 @@ class StandingsTab extends StatefulWidget {
 }
 
 class _StandingsTabState extends State<StandingsTab> with Loader {
-  late String _league = context.read<AppState>().leagueId;
+  late String _league;
+
+  @override
+  void initState() {
+    super.initState();
+    _league = context.read<AppState>().leagueId;
+  }
 
   @override
   Future<Loaded> fetch() => app.repo.standings(_league);

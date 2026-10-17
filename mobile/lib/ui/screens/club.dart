@@ -260,7 +260,9 @@ class _ClubMatchesState extends State<_ClubMatches> with Loader {
   Future<Loaded> fetch() => app.repo.fixtures(app.leagueId);
 
   @override
-  Widget build(BuildContext context) => loadedBody(context, (d) {
+  Widget build(BuildContext context) {
+    final league = context.select<AppState, String>((s) => s.leagueId);
+    return loadedBody(context, (d) {
         final rows = asList(asMap(d)['fixtures'])
             .where((r) => r['home_team_id'] == widget.clubId || r['away_team_id'] == widget.clubId)
             .toList()
@@ -282,12 +284,13 @@ class _ClubMatchesState extends State<_ClubMatches> with Loader {
                       child: Text(dayLabel(parseDate(r['scheduled_at'])!),
                           style: Theme.of(context).textTheme.labelMedium),
                     ),
-                  FixtureTile(row: r, leagueId: app.leagueId),
+                  FixtureTile(row: r, leagueId: league),
                 ]),
               ),
           ]),
         );
       });
+  }
 }
 
 class PlayerHistoryScreen extends StatefulWidget {
