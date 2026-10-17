@@ -168,41 +168,43 @@ def _resolve_tied_group(
     criteria: list[str],
     stats: dict[str, dict[str, Any]],
     played_matches: list[MatchRecord],
-    completed_matches: list[MatchRecord],
     league: League,
     sport: Sport,
-) -> tuple[list[str], list[str | None]]:
-    if len(group) <= 1:
-        return group, []
+) -> tuple[list[str], dict[str, str | None]]:
+    """Order teams level on points; return the order and, per team, the
+    criterion that finally separated it from the rest of its tied group.
 
+    h2h criteria are evaluated in a mini-league of the tied teams only. When a
+    criterion splits the group, every still-tied subgroup restarts from the
+    first criterion with its own (smaller) mini-league.
+    """
+    if len(group) <= 1:
+        return list(group), {}
+
+    members = set(group)
+    mini_league = [
+        match
+        for match in played_matches
+        if match.home_team_id in members and match.away_team_id in members
+    ]
     for criterion in criteria:
         values: dict[str, Any] = {}
         for team_id in group:
             if criterion == "h2h_points":
-                members = set(group)
                 values[team_id] = sum(
                     _points_for(match, team_id, league.points)
-                    for match in played_matches
-                    if match.home_team_id in members and match.away_team_id in members
-                    and team_id in {match.home_team_id, match.away_team_id}
+                    for match in mini_league
+                    if team_id in {match.home_team_id, match.away_team_id}
                 )
             elif criterion == "h2h_diff":
-                members = set(group)
-                mini_league = [
-                    match
-                    for match in played_matches
-                    if match.home_team_id in members and match.away_team_id in members
-                ]
                 values[team_id] = _diff_for_matches(team_id, mini_league, sport)
             elif criterion == "overall_diff":
-                values[team_id] = _diff_for_matches(
-                    team_id, completed_matches, sport
-                )
+                values[team_id] = stats[team_id]["diff"]
             elif criterion == "scored":
-                values[team_id] = stats[team_id]["completed_scored"]
+                values[team_id] = stats[team_id]["scored"]
             elif criterion == "fair_play":
-                values[team_id] = stats[team_id]["completed_fair_play"]
-            else:  # draw_lots
+                values[team_id] = stats[team_id]["fair_play"]
+            else:  # draw_lots: ascending SHA-256 key
                 values[team_id] = lots_key(
                     league.lots_seed, league.league_id, team_id
                 )
@@ -213,29 +215,23 @@ def _resolve_tied_group(
         if len(buckets) == 1:
             continue
 
-        bucket_values = sorted(buckets, reverse=criterion != "draw_lots")
         ordered: list[str] = []
-        boundaries: list[str | None] = []
-        for value in bucket_values:
+        resolved: dict[str, str | None] = {}
+        for value in sorted(buckets, reverse=criterion != "draw_lots"):
             child = buckets[value]
-            child_order, child_boundaries = _resolve_tied_group(
-                child,
-                criteria,
-                stats,
-                played_matches,
-                completed_matches,
-                league,
-                sport,
+            if len(child) == 1:
+                ordered.append(child[0])
+                resolved[child[0]] = criterion
+                continue
+            child_order, child_resolved = _resolve_tied_group(
+                child, criteria, stats, played_matches, league, sport
             )
-            if ordered:
-                boundaries.append(criterion)
             ordered.extend(child_order)
-            boundaries.extend(child_boundaries)
-        return ordered, boundaries
+            resolved.update(child_resolved)
+        return ordered, resolved
 
-    # A digest collision in draw_lots is extraordinarily unlikely. Retain a
-    # stable order if every listed criterion still gives exactly equal values.
-    return sorted(group), [None] * (len(group) - 1)
+    # Only reachable on a SHA-256 collision in draw_lots; keep a stable order.
+    return sorted(group), {team_id: None for team_id in group}
 
 
 def get_standings(session: Session, league_id: str) -> dict[str, Any]:
@@ -269,7 +265,6 @@ def get_standings(session: Session, league_id: str) -> dict[str, Any]:
         _record(score_match(session, stream.match_id)) for stream in streams
     ]
     played_matches = [match for match in matches if match.played]
-    completed_matches = [match for match in matches if match.status == "completed"]
 
     stats: dict[str, dict[str, Any]] = {
         team_id: {
@@ -281,8 +276,6 @@ def get_standings(session: Session, league_id: str) -> dict[str, Any]:
             "conceded": 0,
             "points": 0,
             "fair_play": 0,
-            "completed_fair_play": 0,
-            "completed_scored": 0,
             "remaining": 0,
             "diff": 0,
         }
@@ -300,28 +293,23 @@ def get_standings(session: Session, league_id: str) -> dict[str, Any]:
     for match in matches:
         home_id = match.home_team_id
         away_id = match.away_team_id
-        if home_id in stats:
-            stats[home_id]["fair_play"] += match.home_fair_play
-        if away_id in stats:
-            stats[away_id]["fair_play"] += match.away_fair_play
-        if match.status == "completed":
-            if home_id in stats:
-                stats[home_id]["completed_fair_play"] += match.home_fair_play
-                stats[home_id]["completed_scored"] += match.home_score
-            if away_id in stats:
-                stats[away_id]["completed_fair_play"] += match.away_fair_play
-                stats[away_id]["completed_scored"] += match.away_score
-        if not match.played:
+        if match.status != "completed":
+            # Still to be decided: counts towards each side's maximum points.
             if home_id in stats:
                 stats[home_id]["remaining"] += 1
             if away_id in stats:
                 stats[away_id]["remaining"] += 1
+            continue
+        # Only completed matches with an outcome other than undecided count.
+        if not match.played:
             continue
 
         if home_id not in stats or away_id not in stats:
             continue
         home_stat = stats[home_id]
         away_stat = stats[away_id]
+        home_stat["fair_play"] += match.home_fair_play
+        away_stat["fair_play"] += match.away_fair_play
         home_stat["played"] += 1
         away_stat["played"] += 1
         home_stat["scored"] += match.home_score
@@ -375,21 +363,12 @@ def get_standings(session: Session, league_id: str) -> dict[str, Any]:
     resolved_by: dict[str, str | None] = {}
     for points_value in sorted(by_points, reverse=True):
         group = by_points[points_value]
-        ordered, boundaries = _resolve_tied_group(
-            group,
-            criteria,
-            stats,
-            played_matches,
-            completed_matches,
-            league,
-            sport,
+        ordered, resolved = _resolve_tied_group(
+            group, criteria, stats, played_matches, league, sport
         )
-        for index, team_id in enumerate(ordered):
-            resolved_by[team_id] = (
-                boundaries[index]
-                if index < len(ordered) - 1 and index < len(boundaries)
-                else None
-            )
+        for team_id in ordered:
+            # null for a team that was never level on points with another.
+            resolved_by[team_id] = resolved.get(team_id)
         ranked.extend(ordered)
 
     qualification = _qualification_statuses(

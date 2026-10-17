@@ -164,7 +164,13 @@ def _schema(body: Any) -> dict[str, Any]:
     }
 
 
-def create_league(session: Session, body: Any, *, tenant_id: str | None = None) -> dict[str, Any]:
+def create_league(
+    session: Session,
+    body: Any,
+    *,
+    tenant_id: str | None = None,
+    name: str | None = None,
+) -> dict[str, Any]:
     config = _schema(body)
 
     sport = session.get(Sport, config["sport_id"])
@@ -220,6 +226,7 @@ def create_league(session: Session, body: Any, *, tenant_id: str | None = None) 
         league_id=league_id,
         sport_id=sport.sport_id,
         tenant_id=tenant_id,
+        name=name,
         points=points,
         tie_break_order=tie_break_order,
         qualification_spots=config["qualification_spots"],

@@ -96,6 +96,16 @@ def _schema(body: Any) -> dict[str, Any]:
             {"fields": sorted(fields)},
         )
 
+    # Schema problems (400) win over missing references (404): an unknown
+    # stream event type is rejected before the match is looked up.
+    if event_type not in EVENT_TYPES:
+        raise ApiError(
+            400,
+            "UNKNOWN_EVENT_TYPE",
+            f"Unknown event type {event_type}.",
+            {"type": event_type},
+        )
+
     return {
         "event_id": event_id,
         "match_id": match_id,
@@ -370,17 +380,7 @@ def append_event(session: Session, body: Any) -> AppendResult:
     stream = session.get(MatchStream, match_id)
 
     if event_type == "match_init":
-        if stream is not None:
-            raise _api_error(
-                409,
-                "MATCH_EXISTS",
-                f"Match {match_id} already exists.",
-                {"match_id": match_id},
-            )
-        sport_id = payload["sport_id"]
-        sport = session.get(Sport, sport_id)
-        if sport is None:
-            raise _not_found("SPORT_NOT_FOUND", "sport_id", sport_id)
+        # Validation order: 400 schema, then 404 references, then 409 conflicts.
         home = payload["home_team_id"]
         away = payload["away_team_id"]
         if home == away:
@@ -390,21 +390,44 @@ def append_event(session: Session, body: Any) -> AppendResult:
                 "Home and away teams must differ",
                 {"fields": ["payload.away_team_id"]},
             )
+        sport_id = payload["sport_id"]
+        sport = session.get(Sport, sport_id)
+        if sport is None:
+            raise _not_found("SPORT_NOT_FOUND", "sport_id", sport_id)
         league_id = payload.get("league_id")
         if league_id is not None and session.get(League, league_id) is None:
             raise _not_found("LEAGUE_NOT_FOUND", "league_id", league_id)
-        stream = MatchStream(
-            match_id=match_id,
-            sport_id=sport.sport_id,
-            league_id=league_id,
-            home_team_id=home,
-            away_team_id=away,
-            status="upcoming",
-            version=0,
-            draw_allowed=bool(sport.config["draw_allowed"]),
-        )
-        session.add(stream)
-        session.flush()
+        if stream is not None:
+            # A league fixture registers its stream without events; an init
+            # that describes exactly that fixture opens its event log.
+            adopts_fixture = (
+                stream.version == 0
+                and not _events_for(session, match_id)
+                and stream.sport_id == sport.sport_id
+                and stream.home_team_id == home
+                and stream.away_team_id == away
+                and (league_id is None or league_id == stream.league_id)
+            )
+            if not adopts_fixture:
+                raise _api_error(
+                    409,
+                    "MATCH_EXISTS",
+                    f"Match {match_id} already exists.",
+                    {"match_id": match_id},
+                )
+        else:
+            stream = MatchStream(
+                match_id=match_id,
+                sport_id=sport.sport_id,
+                league_id=league_id,
+                home_team_id=home,
+                away_team_id=away,
+                status="upcoming",
+                version=0,
+                draw_allowed=bool(sport.config["draw_allowed"]),
+            )
+            session.add(stream)
+            session.flush()
         events: list[MatchEvent] = []
     else:
         if stream is None:
@@ -437,6 +460,12 @@ def append_event(session: Session, body: Any) -> AppendResult:
             signature=signature,
         )
     )
+    # Keep the denormalised stream summary in step with the event log.
+    stream.version = sequence
+    if event_type == "match_start":
+        stream.status = "in_progress"
+    elif event_type == "match_end":
+        stream.status = "completed"
     session.flush()
     return AppendResult(response, 201, f"live:{stream.league_id or stream.match_id}")
 
