@@ -11,6 +11,7 @@ from sqlalchemy import inspect, select, text
 from backend.core.db import Base, SessionLocal, create_all, engine
 from backend.core.errors import install_exception_handlers
 from backend.core.middleware import RequestBodyLimitMiddleware
+from backend.core.ratelimit import RateLimitMiddleware
 from backend.core.registry import clear_database, run_reset_hooks
 from backend.core.state import baseline_is_seeded, set_value
 
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="NaSCon '26 API")
     install_exception_handlers(app)
     app.add_middleware(RequestBodyLimitMiddleware)
+    app.add_middleware(RateLimitMiddleware)
     _load_routers(app)
 
     @app.get("/health")
