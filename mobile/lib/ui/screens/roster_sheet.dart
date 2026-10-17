@@ -152,9 +152,9 @@ class _RosterSheetState extends State<_RosterSheet> {
           const SizedBox(height: 16),
           SegmentedButton<String>(
             segments: const [
-              ButtonSegment(value: 'transfer', label: Text('Transfer'), icon: Icon(Icons.swap_horiz)),
-              ButtonSegment(value: 'loan', label: Text('Loan'), icon: Icon(Icons.schedule_send)),
-              ButtonSegment(value: 'release', label: Text('Release'), icon: Icon(Icons.logout)),
+              ButtonSegment(value: 'transfer', label: Text('Transfer')),
+              ButtonSegment(value: 'loan', label: Text('Loan')),
+              ButtonSegment(value: 'release', label: Text('Release')),
             ],
             selected: {_type},
             showSelectedIcon: false,
