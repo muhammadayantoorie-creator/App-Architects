@@ -6,21 +6,15 @@ import '../../core/config.dart';
 import '../../core/error_messages.dart';
 import '../../core/formatters.dart';
 import '../../data/app_state.dart';
+import '../../data/cart.dart';
 import '../widgets/common.dart';
 import '../widgets/network_chip.dart';
 import 'receipt.dart';
 
+/// Cart + checkout. With [buyNow] it checks out just that line; otherwise the shared cart.
 class CheckoutScreen extends StatefulWidget {
-  const CheckoutScreen({
-    super.key,
-    required this.product,
-    required this.variant,
-    required this.quantity,
-  });
-
-  final Map<String, dynamic> product;
-  final Map<String, dynamic> variant;
-  final int quantity;
+  const CheckoutScreen({super.key, this.buyNow});
+  final CartLine? buyNow;
 
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
@@ -40,18 +34,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  String? get _currency => widget.variant['currency'] as String?;
-  num get _subtotal => ((widget.variant['price_minor'] as num?) ?? 0) * widget.quantity;
+  bool get _isCart => widget.buyNow == null;
 
-  Future<void> _pay() async {
+  List<CartLine> _lines(Cart cart) => _isCart ? cart.lines : [widget.buyNow!];
+
+  Future<void> _pay(List<CartLine> lines) async {
+    final currency = lines.first.currency;
+    final subtotal = lines.fold<int>(0, (n, l) => n + l.totalMinor);
+    final code = _discount.text.trim();
     final ok = await confirmDialog(context,
-        title: 'Pay ${money(_subtotal, _currency)}?',
-        message:
-            '${widget.quantity} × ${widget.product['name']} (${widget.variant['label']}).'
-            '${_discount.text.trim().isEmpty ? '' : ' Discount code ${_discount.text.trim()} will be applied if valid.'}',
+        title: 'Pay ${money(subtotal, currency)}?',
+        message: '${lines.map((l) => '${l.quantity} × ${l.title}').join('\n')}'
+            '${code.isEmpty ? '' : '\nDiscount code $code will be applied if valid.'}',
         confirmLabel: 'Pay');
     if (!ok || !mounted) return;
     final s = context.read<AppState>();
+    final cart = context.read<Cart>();
     setState(() {
       _busy = true;
       _error = null;
@@ -61,20 +59,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'order_id': _orderId,
         'customer_id': s.userId,
         'items': [
-          {'variant_id': widget.variant['variant_id'], 'quantity': widget.quantity},
+          for (final l in lines) {'variant_id': l.variantId, 'quantity': l.quantity},
         ],
-        'discount_code': _discount.text.trim().isEmpty ? null : _discount.text.trim(),
+        'discount_code': code.isEmpty ? null : code,
         'payment': {'token': _token},
       });
       if (!mounted) return;
+      final names = {for (final l in lines) l.variantId: l.title};
+      if (_isCart) cart.clear();
       await Navigator.pushReplacement(
         context,
         MaterialPageRoute<void>(
-          builder: (_) => ReceiptScreen(
-            order: Map<String, dynamic>.from(res as Map),
-            productName: '${widget.product['name']}',
-            variantLabel: '${widget.variant['label']}',
-          ),
+          builder: (_) =>
+              ReceiptScreen(order: Map<String, dynamic>.from(res as Map), names: names),
         ),
       );
     } on ApiException catch (e) {
@@ -97,82 +94,136 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final cart = context.watch<Cart>();
+    final lines = _lines(cart);
+    final currency = lines.isEmpty ? 'PKR' : lines.first.currency;
+    final subtotal = lines.fold<int>(0, (n, l) => n + l.totalMinor);
     return Scaffold(
-      appBar: AppBar(title: const Text('Checkout'), actions: const [NetworkChip()]),
+      appBar: AppBar(title: Text(_isCart ? 'Cart' : 'Checkout'), actions: const [NetworkChip()]),
       body: SafeArea(
-        child: ListView(padding: const EdgeInsets.all(16), children: [
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.checkroom, semanticLabel: 'Item'),
-              title: Text('${widget.product['name']}'),
-              subtitle: Text('${widget.variant['label']} · Qty ${widget.quantity}'),
-              trailing: Text(money(_subtotal, _currency), style: t.textTheme.titleSmall),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _discount,
-            textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(
-              labelText: 'Discount code (optional)',
-              prefixIcon: Icon(Icons.local_offer_outlined),
-            ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _token,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Payment method (test gateway)',
-              prefixIcon: Icon(Icons.credit_card),
-            ),
-            items: [
-              for (final (token, label) in paymentOptions)
-                DropdownMenuItem(value: token, child: Text(label)),
-            ],
-            onChanged: (v) => setState(() => _token = v ?? _token),
-          ),
-          const SizedBox(height: 16),
-          LabelValue('Subtotal', money(_subtotal, _currency)),
-          LabelValue('Discount',
-              _discount.text.trim().isEmpty ? money(0, _currency) : 'Applied at payment'),
-          const Divider(),
-          LabelValue('Total', money(_subtotal, _currency), bold: true),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Semantics(
-              liveRegion: true,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                    color: t.colorScheme.errorContainer, borderRadius: BorderRadius.circular(12)),
-                child: Row(children: [
-                  Icon(Icons.error_outline,
-                      color: t.colorScheme.onErrorContainer, semanticLabel: 'Error'),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: Text(_error!, style: TextStyle(color: t.colorScheme.onErrorContainer))),
-                ]),
+        child: lines.isEmpty
+            ? EmptyState(
+                icon: Icons.shopping_cart_outlined,
+                message: 'Your cart is empty. Add items from the Store.',
+                actionLabel: 'Back to Store',
+                onAction: () => Navigator.pop(context),
+              )
+            : ListView(padding: const EdgeInsets.all(16), children: [
+                for (final l in lines)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                      child: Row(children: [
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('${l.product['name']}', style: t.textTheme.titleSmall),
+                            Text('${l.variant['label']} · ${money(l.unitMinor, l.currency)} each',
+                                style: t.textTheme.bodySmall),
+                            const SizedBox(height: 4),
+                            Text(money(l.totalMinor, l.currency),
+                                style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                          ]),
+                        ),
+                        if (_isCart) ...[
+                          IconButton(
+                            tooltip: 'Decrease quantity',
+                            onPressed: l.quantity > 1 && !_busy
+                                ? () => cart.setQuantity(l, l.quantity - 1)
+                                : null,
+                            icon: const Icon(Icons.remove, semanticLabel: 'Decrease quantity'),
+                          ),
+                          Text('${l.quantity}',
+                              style: t.textTheme.titleMedium, semanticsLabel: 'Quantity ${l.quantity}'),
+                          IconButton(
+                            tooltip: 'Increase quantity',
+                            onPressed: l.quantity < Cart.maxQty(l) && !_busy
+                                ? () => cart.setQuantity(l, l.quantity + 1)
+                                : null,
+                            icon: const Icon(Icons.add, semanticLabel: 'Increase quantity'),
+                          ),
+                          IconButton(
+                            tooltip: 'Remove from cart',
+                            onPressed: _busy ? null : () => cart.remove(l),
+                            icon: const Icon(Icons.delete_outline, semanticLabel: 'Remove from cart'),
+                          ),
+                        ] else
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text('Qty ${l.quantity}', style: t.textTheme.titleSmall),
+                          ),
+                      ]),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _discount,
+                  textCapitalization: TextCapitalization.characters,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Discount code (optional)',
+                    prefixIcon: Icon(Icons.local_offer_outlined),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _token,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Payment method (test gateway)',
+                    prefixIcon: Icon(Icons.credit_card),
+                  ),
+                  items: [
+                    for (final (token, label) in paymentOptions)
+                      DropdownMenuItem(value: token, child: Text(label)),
+                  ],
+                  onChanged: (v) => setState(() => _token = v ?? _token),
+                ),
+                const SizedBox(height: 16),
+                LabelValue('Subtotal', money(subtotal, currency)),
+                LabelValue('Discount',
+                    _discount.text.trim().isEmpty ? money(0, currency) : 'Applied at payment'),
+                const Divider(),
+                LabelValue('Total', money(subtotal, currency), bold: true),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Semantics(
+                    liveRegion: true,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                          color: t.colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(12)),
+                      child: Row(children: [
+                        Icon(Icons.error_outline,
+                            color: t.colorScheme.onErrorContainer, semanticLabel: 'Error'),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: Text(_error!,
+                                style: TextStyle(color: t.colorScheme.onErrorContainer))),
+                      ]),
+                    ),
+                  ),
+                ],
+              ]),
+      ),
+      bottomNavigationBar: lines.isEmpty
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : () => _pay(List.of(lines)),
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Paying'))
+                      : const Icon(Icons.lock_outline, semanticLabel: 'Pay'),
+                  label: Text(_busy ? 'Processing payment…' : 'Pay ${money(subtotal, currency)}'),
+                ),
               ),
             ),
-          ],
-        ]),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: FilledButton.icon(
-            onPressed: _busy ? null : _pay,
-            icon: _busy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Paying'))
-                : const Icon(Icons.lock_outline, semanticLabel: 'Pay'),
-            label: Text(_busy ? 'Processing payment…' : 'Pay ${money(_subtotal, _currency)}'),
-          ),
-        ),
-      ),
     );
   }
 }

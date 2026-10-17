@@ -16,5 +16,5 @@ const demoAccounts = [
 const paymentOptions = [
   ('tok_success', 'Card — success'),
   ('tok_declined', 'Card — declined'),
-  ('tok_capture_failed', 'Card — capture fails'),
+  ('tok_capture_fail', 'Card — capture fails'),
 ];

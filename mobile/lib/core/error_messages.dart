@@ -20,6 +20,8 @@ const _messages = {
   'PLAYER_ON_LOAN': "This player is on loan and can't be moved until they return.",
   'SQUAD_FULL': 'The destination squad is full.',
   'MIN_POSITION_VIOLATION': 'The club would have too few players in this position.',
+  'UNKNOWN_EVENT_TYPE': "That scoring type isn't part of this sport.",
+  'PAYLOAD_TOO_LARGE': 'That request was too large. Please try again with less data.',
   'INVALID_BASE_VERSION': 'This action was based on data that changed. Please refresh and try again.',
   'RATE_LIMITED': 'Too many requests. Retrying in a moment.',
   'NETWORK': "You're offline. Your action is saved and will sync automatically.",

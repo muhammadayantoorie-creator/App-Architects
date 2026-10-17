@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/nav.dart';
 import 'core/theme.dart';
 import 'data/app_state.dart';
+import 'data/cart.dart';
 import 'ui/screens/login.dart';
 import 'ui/shell.dart';
 
@@ -11,7 +12,13 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final state = AppState();
   await state.init();
-  runApp(ChangeNotifierProvider.value(value: state, child: const NasconApp()));
+  runApp(MultiProvider(
+    providers: [
+      ChangeNotifierProvider.value(value: state),
+      ChangeNotifierProvider(create: (_) => Cart()),
+    ],
+    child: const NasconApp(),
+  ));
 }
 
 class NasconApp extends StatelessWidget {

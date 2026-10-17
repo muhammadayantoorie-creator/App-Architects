@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/formatters.dart';
+import '../../core/nav.dart';
 import '../../data/app_state.dart';
+import '../../data/cart.dart';
 import '../../data/repository.dart';
 import '../widgets/loader.dart';
 import '../widgets/network_chip.dart';
@@ -42,6 +44,22 @@ class _ProductScreenState extends State<ProductScreen> with Loader {
     }
   }
 
+  void _addToCart(Map<String, dynamic> p, Map<String, dynamic> v) {
+    final ok = context.read<Cart>().add(p, v, _qty);
+    if (!ok) {
+      showSnack('Your cart already has 10 different items. Check out first.', error: true);
+      return;
+    }
+    showSnack(
+      'Added $_qty × ${p['name']} (${v['label']}) to your cart.',
+      action: SnackBarAction(
+        label: 'View cart',
+        onPressed: () => navKey.currentState
+            ?.push(MaterialPageRoute<void>(builder: (_) => const CheckoutScreen())),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final canBuy = context.select<AppState, bool>((s) => s.canBuy);
@@ -51,7 +69,10 @@ class _ProductScreenState extends State<ProductScreen> with Loader {
     final stock = (v?['stock'] as num?)?.toInt() ?? 0;
     final total = ((v?['price_minor'] as num?) ?? 0) * _qty;
     return Scaffold(
-      appBar: AppBar(title: Text('${p['name'] ?? 'Product'}'), actions: const [NetworkChip()]),
+      appBar: AppBar(
+        title: Text('${p['name'] ?? 'Product'}', overflow: TextOverflow.ellipsis),
+        actions: [if (canBuy) const CartButton(), const NetworkChip()],
+      ),
       body: SafeArea(child: loadedBody(context, (_) => _details(context, p, variants, stock))),
       bottomNavigationBar: loaded == null || p.isEmpty
           ? null
@@ -59,21 +80,38 @@ class _ProductScreenState extends State<ProductScreen> with Loader {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 child: canBuy
-                    ? FilledButton.icon(
-                        onPressed: v == null || stock <= 0
-                            ? null
-                            : () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute<void>(
-                                    builder: (_) =>
-                                        CheckoutScreen(product: p, variant: v, quantity: _qty),
-                                  ),
-                                ),
-                        icon: const Icon(Icons.shopping_cart_checkout, semanticLabel: 'Buy'),
-                        label: Text(v == null || stock <= 0
-                            ? 'Sold out'
-                            : 'Buy · ${money(total, v['currency'] as String?)}'),
-                      )
+                    ? Column(mainAxisSize: MainAxisSize.min, children: [
+                        if (v != null && stock > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text('Total: ${money(total, v['currency'] as String?)}',
+                                style: Theme.of(context).textTheme.titleMedium),
+                          ),
+                        Row(children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: v == null || stock <= 0 ? null : () => _addToCart(p, v),
+                              child: const Text('Add to cart'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: v == null || stock <= 0
+                                  ? null
+                                  : () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => CheckoutScreen(
+                                            buyNow: CartLine(product: p, variant: v, quantity: _qty),
+                                          ),
+                                        ),
+                                      ),
+                              child: Text(v == null || stock <= 0 ? 'Sold out' : 'Buy now'),
+                            ),
+                          ),
+                        ]),
+                      ])
                     : const Text('Viewer accounts can browse the store but not buy.',
                         textAlign: TextAlign.center),
               ),

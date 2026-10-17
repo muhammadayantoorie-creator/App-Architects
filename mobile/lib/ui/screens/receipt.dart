@@ -11,16 +11,12 @@ import '../../data/repository.dart';
 import '../widgets/common.dart';
 
 class ReceiptScreen extends StatefulWidget {
-  const ReceiptScreen({
-    super.key,
-    required this.order,
-    required this.productName,
-    required this.variantLabel,
-  });
+  const ReceiptScreen({super.key, required this.order, required this.names});
 
   final Map<String, dynamic> order;
-  final String productName;
-  final String variantLabel;
+
+  /// variant_id → "Product (Variant)"; order items only carry ids.
+  final Map<String, String> names;
 
   @override
   State<ReceiptScreen> createState() => _ReceiptScreenState();
@@ -85,19 +81,14 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                   const SizedBox(height: 8),
                   LabelValue('Status', paid ? 'Paid' : humanize(status)),
                   const Divider(),
-                  if (items.isEmpty)
-                    LabelValue('${widget.productName} (${widget.variantLabel})',
-                        money(o['subtotal_minor'] as num?, currency))
-                  else
-                    for (final i in items)
-                      LabelValue(
-                        '${i['quantity'] ?? 1} × ${i['name'] ?? widget.productName}'
-                        ' (${i['label'] ?? i['variant_label'] ?? widget.variantLabel})',
-                        money((i['line_total_minor'] ?? i['total_minor'] ??
-                                ((i['price_minor'] ?? i['unit_price_minor'] ?? 0) as num) *
-                                    ((i['quantity'] ?? 1) as num)) as num?,
-                            currency),
-                      ),
+                  for (final i in items)
+                    LabelValue(
+                      '${i['quantity'] ?? 1} × ${widget.names[i['variant_id']] ?? i['name'] ?? i['variant_id']}',
+                      money((i['line_total_minor'] ??
+                              ((i['unit_price_minor'] ?? i['price_minor'] ?? 0) as num) *
+                                  ((i['quantity'] ?? 1) as num)) as num?,
+                          currency),
+                    ),
                   const Divider(),
                   LabelValue('Subtotal', money(o['subtotal_minor'] as num?, currency)),
                   LabelValue('Discount', '− ${money(o['discount_minor'] as num?, currency)}'),
