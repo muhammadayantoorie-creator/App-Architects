@@ -10,7 +10,8 @@ import '../../data/repository.dart';
 import '../widgets/common.dart';
 import '../widgets/league_picker.dart';
 import '../widgets/loader.dart';
-import '../widgets/status_label.dart';
+import '../../core/theme.dart';
+import '../widgets/sports.dart';
 import 'match.dart';
 
 class FixturesTab extends StatefulWidget {
@@ -88,13 +89,10 @@ class _FixturesTabState extends State<FixturesTab> with Loader {
       final day = d == null ? 'Date to be confirmed' : dayLabel(d);
       if (day != lastDay) {
         lastDay = day;
-        children.add(Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(day, style: Theme.of(context).textTheme.titleSmall),
-        ));
+        children.add(SectionHeader(day));
       }
       children.add(Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
         child: FixtureTile(row: r, leagueId: _league),
       ));
     }
@@ -116,19 +114,16 @@ class FixtureTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
     final status = row['status'] as String?;
     final showScore = status == 'in_progress' || status == 'completed';
     final d = parseDate(row['scheduled_at']);
-    Widget team(String? name, dynamic score) => Row(children: [
-          Expanded(
-            child: Text(name ?? 'TBC',
-                style: t.textTheme.bodyLarge, overflow: TextOverflow.ellipsis),
-          ),
-          if (showScore)
-            Text('${score ?? 0}',
-                style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-        ]);
+    final hs = (row['home_score'] as num?) ?? 0;
+    final as = (row['away_score'] as num?) ?? 0;
+    final done = status == 'completed';
+    final homeWins = done && hs > as;
+    final awayWins = done && as > hs;
+    Widget team(String id, String? name, bool win, bool lose) => TeamBadge(
+        teamId: id, name: name ?? 'TBC', size: 28, bold: win, dim: lose);
     return Card(
       child: InkWell(
         onTap: () => Navigator.push(
@@ -140,25 +135,25 @@ class FixtureTile extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(children: [
-            SizedBox(
-              width: 80,
+            Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(d == null ? '--:--' : hm(d), style: t.textTheme.titleSmall),
-                const SizedBox(height: 4),
-                StatusLabel(status),
+                team('${row['home_team_id']}', row['home_name'] as String?, homeWins, awayWins),
+                const SizedBox(height: 8),
+                team('${row['away_team_id']}', row['away_name'] as String?, awayWins, homeWins),
               ]),
             ),
             const SizedBox(width: 8),
-            Expanded(
-              child: Column(children: [
-                team(row['home_name'] as String?, row['home_score']),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              StatusPill(status: status, time: d),
+              if (showScore) ...[
                 const SizedBox(height: 4),
-                team(row['away_name'] as String?, row['away_score']),
-              ]),
-            ),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right,
-                color: t.colorScheme.onSurfaceVariant, semanticLabel: 'Open match'),
+                ScoreText('$hs', dim: awayWins),
+                ScoreText('$as', dim: homeWins),
+              ] else if (d != null) ...[
+                const SizedBox(height: 6),
+                Text(dayLabel(d), style: const TextStyle(fontSize: 12, color: AppColors.textSub)),
+              ],
+            ]),
           ]),
         ),
       ),

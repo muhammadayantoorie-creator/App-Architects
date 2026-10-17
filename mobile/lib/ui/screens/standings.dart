@@ -8,6 +8,7 @@ import '../../data/repository.dart';
 import '../widgets/common.dart';
 import '../widgets/league_picker.dart';
 import '../widgets/loader.dart';
+import '../widgets/sports.dart';
 import 'club.dart';
 
 class StandingsTab extends StatefulWidget {
@@ -77,12 +78,15 @@ class _StandingsTabState extends State<StandingsTab> with Loader {
                 showCheckboxColumn: false,
                 columnSpacing: 14,
                 horizontalMargin: 8,
-                headingRowHeight: 44,
+                headingRowHeight: 40,
                 dataRowMinHeight: 48,
-                dataRowMaxHeight: 56,
+                dataRowMaxHeight: 52,
+                headingRowColor: const WidgetStatePropertyAll(AppColors.primary),
+                headingTextStyle:
+                    const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
                 columns: const [
                   DataColumn(label: Text('#'), numeric: true),
-                  DataColumn(label: Text('Team')),
+                  DataColumn(label: Text('TEAM')),
                   DataColumn(label: Tooltip(message: 'Played', child: Text('P')), numeric: true),
                   DataColumn(label: Tooltip(message: 'Won', child: Text('W')), numeric: true),
                   DataColumn(label: Tooltip(message: 'Drawn', child: Text('D')), numeric: true),
@@ -90,8 +94,8 @@ class _StandingsTabState extends State<StandingsTab> with Loader {
                   DataColumn(
                       label: Tooltip(message: 'Goal difference', child: Text('GD')),
                       numeric: true),
-                  DataColumn(label: Tooltip(message: 'Points', child: Text('Pts')), numeric: true),
-                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Tooltip(message: 'Points', child: Text('PTS')), numeric: true),
+                  DataColumn(label: Text('')),
                 ],
                 rows: [
                   for (final r in rows) _row(context, r, names, spots),
@@ -111,7 +115,9 @@ class _StandingsTabState extends State<StandingsTab> with Loader {
     final (label, color) = statusOf(context, r, spots);
     final teamId = r['team_id'] as String?;
     final name = '${names[teamId] ?? teamId ?? ''}';
+    final rank = (r['rank'] as num?)?.toInt() ?? 0;
     return DataRow(
+      color: WidgetStatePropertyAll(rank.isEven ? AppColors.rowAlt : Colors.white),
       onSelectChanged: teamId == null
           ? null
           : (_) => Navigator.push(
@@ -125,10 +131,8 @@ class _StandingsTabState extends State<StandingsTab> with Loader {
           Text('${r['rank'] ?? ''}'),
         ])),
         DataCell(ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 140),
-          child: Text(name,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w500)),
+          constraints: const BoxConstraints(maxWidth: 160),
+          child: TeamBadge(teamId: teamId ?? name, name: name, size: 24),
         )),
         DataCell(Text('${r['played'] ?? 0}')),
         DataCell(Text('${r['won'] ?? 0}')),
@@ -146,12 +150,11 @@ class _StandingsTabState extends State<StandingsTab> with Loader {
 }
 
 (String, Color?) statusOf(BuildContext context, Map<String, dynamic> r, int spots) {
-  final s = Theme.of(context).colorScheme;
   final rank = (r['rank'] as num?)?.toInt() ?? 999;
   return switch (r['status']) {
-    'clinched' => ('Clinched', clinchedColor),
-    'eliminated' => ('Out', s.error),
-    _ when rank <= spots => ('Q', s.primary),
+    'clinched' => ('Clinched', AppColors.qualifyBar),
+    'eliminated' => ('Out', AppColors.eliminatedBar),
+    _ when rank <= spots => ('Q', AppColors.qualifyBar),
     _ => ('—', null),
   };
 }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/nav.dart';
+import '../../core/theme.dart';
 import '../../data/app_state.dart';
 import 'settings.dart';
 
@@ -84,19 +85,30 @@ class _LoginScreenState extends State<LoginScreen> {
               constraints: const BoxConstraints(maxWidth: 480),
               child: AutofillGroup(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Row(children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset('assets/icon.png',
-                          width: 48, height: 48, semanticLabel: 'Huddle logo'),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    const SizedBox(width: 12),
-                    Text('Huddle', style: t.textTheme.headlineSmall),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text('Follow matches, shop and manage your club.',
-                      style: t.textTheme.bodyMedium
-                          ?.copyWith(color: t.colorScheme.onSurfaceVariant)),
+                    child: Row(children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.asset('assets/icon.png',
+                            width: 64, height: 64, semanticLabel: 'Huddle logo'),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Huddle',
+                              style: TextStyle(
+                                  color: Colors.white, fontSize: 34, fontWeight: FontWeight.w800)),
+                          Text('Leagues · Clubs · Store',
+                              style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        ]),
+                      ),
+                    ]),
+                  ),
                   const SizedBox(height: 24),
                   if (s.sessionMessage != null) ...[
                     _Notice(text: s.sessionMessage!),
