@@ -347,7 +347,9 @@ def post_event(body: Any = Body(...), p: dict = Depends(current_principal)) -> J
         if stream is None and p.get("role") not in (ADMIN, ORGANIZER):
             raise _forbid()
         result = append_event(session, body)
-    _publish(result.channel)
+    from backend.modules.events.router import publish_match_updated
+
+    publish_match_updated(result.channel, result.response["match_id"])
     return JSONResponse(status_code=result.status_code, content=result.response)
 
 
@@ -524,50 +526,36 @@ def _publish(channel: str | None, message: dict[str, Any] | None = None) -> None
 # --------------------------------------------------------------------------- live (SSE)
 
 
-def _league_snapshot(league_id: str) -> dict[str, dict[str, Any]]:
-    with SessionLocal() as session:
-        snap: dict[str, dict[str, Any]] = {}
-        for stream in session.scalars(select(MatchStream).where(MatchStream.league_id == league_id)):
-            proj = score_match(session, stream.match_id)
-            pin = session.get(PinnedProduct, stream.match_id)
-            snap[stream.match_id] = {
-                "match_id": stream.match_id,
-                "version": proj["version"],
-                "status": proj["status"],
-                "home_score": proj["home"]["score"],
-                "away_score": proj["away"]["score"],
-                "pinned": pin.product_id if pin else None,
-            }
-        return snap
-
-
 @router.get("/live")
 async def live(request: Request, league_id: str, p: dict = Depends(_live_principal)) -> StreamingResponse:
     with SessionLocal() as session:
         _require_league(session, p, league_id)
 
     async def stream():
-        previous = await asyncio.to_thread(_league_snapshot, league_id)
-        yield ": connected\n\n"
-        idle = 0
-        while not await request.is_disconnected():
-            await asyncio.sleep(2)
-            idle += 2
-            current = await asyncio.to_thread(_league_snapshot, league_id)
-            for match_id, row in current.items():
-                before = previous.get(match_id)
-                if before is None or before["version"] != row["version"]:
-                    data = {k: row[k] for k in ("match_id", "version", "status", "home_score", "away_score")}
-                    yield f"event: match_updated\ndata: {json.dumps(data)}\n\n"
-                    idle = 0
-                if before is not None and before["pinned"] != row["pinned"] and row["pinned"]:
-                    data = {"match_id": match_id, "product_id": row["pinned"]}
-                    yield f"event: product_pinned\ndata: {json.dumps(data)}\n\n"
-                    idle = 0
-            previous = current
-            if idle >= 15:
-                idle = 0
-                yield ": keep-alive\n\n"
+        from backend.core.redis_client import get_redis
+
+        pubsub = get_redis().pubsub(ignore_subscribe_messages=True)
+        try:
+            await asyncio.to_thread(pubsub.subscribe, f"live:{league_id}")
+            yield ": connected\n\n"
+            last_heartbeat = asyncio.get_running_loop().time()
+            while not await request.is_disconnected():
+                message = await asyncio.to_thread(pubsub.get_message, timeout=1)
+                if message is not None and message.get("type") == "message":
+                    try:
+                        data = json.loads(message["data"])
+                    except (TypeError, ValueError):
+                        continue
+                    event_type = data.get("type") if isinstance(data, dict) else None
+                    if event_type in ("match_updated", "product_pinned"):
+                        data = {key: value for key, value in data.items() if key != "type"}
+                        yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+                now = asyncio.get_running_loop().time()
+                if now - last_heartbeat >= 15:
+                    last_heartbeat = now
+                    yield ": keep-alive\n\n"
+        finally:
+            await asyncio.to_thread(pubsub.close)
 
     return StreamingResponse(
         stream(),

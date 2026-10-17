@@ -1,5 +1,7 @@
 """The /api/v1 routes the mobile app calls (FRONTEND contract), end to end."""
 
+import json
+import time
 import pytest
 
 from tests.conftest import assert_error
@@ -42,6 +44,42 @@ def test_live_accepts_only_verified_header_or_query_token(client, mgr):
     token = mgr["Authorization"].removeprefix("Bearer ")
     assert_error(client.get(path + "&token=" + token), 404, "LEAGUE_NOT_FOUND")
     assert_error(client.get(path, headers=mgr), 404, "LEAGUE_NOT_FOUND")
+
+
+def test_live_channel_emits_match_and_product_updates(client, org):
+    from backend.core.redis_client import get_redis
+
+    def next_message(pubsub):
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            message = pubsub.get_message(timeout=0.2)
+            if message is not None:
+                return json.loads(message["data"])
+        pytest.fail("No live message published")
+
+    pubsub = get_redis().pubsub(ignore_subscribe_messages=True)
+    pubsub.subscribe("live:demo-league-ui")
+    try:
+        started = client.post("/api/v1/events", json={
+            "event_id": "app-live-start", "match_id": "demo-match-5",
+            "type": "match_start", "payload": {},
+        }, headers=org)
+        assert started.status_code == 201, started.text
+        update = next_message(pubsub)
+        assert update == {
+            "type": "match_updated", "match_id": "demo-match-5",
+            "version": started.json()["match_version"],
+            "status": "in_progress", "home_score": 0, "away_score": 0,
+        }
+
+        pinned = client.post("/api/v1/matches/demo-match-5/pinned-product",
+                             json={"product_id": "demo-prod-scarf"}, headers=org)
+        assert pinned.status_code == 200, pinned.text
+        product = next_message(pubsub)
+        assert product == {"type": "product_pinned", "match_id": "demo-match-5",
+                           "product_id": "demo-prod-scarf"}
+    finally:
+        pubsub.close()
 
 
 def test_me_has_tenant_branding(client, mgr):
