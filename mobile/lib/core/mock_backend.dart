@@ -81,7 +81,7 @@ class MockBackend {
       _matches[id] = {
         'match_id': id,
         'league_id': 'demo-league-ui',
-        'sport_id': 'football',
+        'sport_id': _sportId,
         'scheduled_at': at.toIso8601String(),
         'status': status,
         'outcome': status == 'completed' ? (hs > as ? 'home_win' : hs < as ? 'away_win' : 'draw') : 'pending',
@@ -105,7 +105,7 @@ class MockBackend {
     final live = _matches['demo-match-4']!;
     (live['events'] as List).addAll([
       {'sequence': 2, 'event_id': 'e-4-2', 'type': 'match_start', 'payload': {}, 'compensated': false, 'compensated_by': null},
-      {'sequence': 3, 'event_id': 'e-4-3', 'type': 'score', 'payload': {'team_id': 'club-alpha-1', 'event_type': 'goal'}, 'compensated': false, 'compensated_by': null},
+      {'sequence': 3, 'event_id': 'e-4-3', 'type': 'score', 'payload': {'team_id': 'club-alpha-1', 'event_type': 'raid_point'}, 'compensated': false, 'compensated_by': null},
     ]);
     live['version'] = 3;
     live['pinned_product'] = {'product_id': 'demo-prod-scarf', 'name': 'Alpha Scarf', 'price_minor': 150000, 'currency': 'PKR'};
@@ -188,7 +188,7 @@ class MockBackend {
         case ['leagues']:
           return (200, {
             'items': [
-              {'league_id': 'demo-league-ui', 'name': 'Alpha Premier League', 'sport_id': 'football', 'tenant_id': 'tenant-alpha'},
+              {'league_id': 'demo-league-ui', 'name': 'Alpha Premier League', 'sport_id': _sportId, 'tenant_id': 'tenant-alpha'},
             ]
           });
         case ['leagues', _, 'fixtures']:
@@ -201,13 +201,11 @@ class MockBackend {
         case ['sports', final id]:
           return (200, {
             'sport_id': id,
-            'name': 'Football',
+            'name': 'Kabaddi',
             'scoring_model': 'event',
-            'draw_allowed': true,
+            'draw_allowed': _drawAllowed,
             'scoring_events': {
-              'goal': {'points': 1},
-              'penalty_goal': {'points': 1},
-              'own_goal': {'points': 1},
+              for (final e in _sportEvents.entries) e.key: {'points': e.value},
             },
           });
         case ['clubs', final id]:
@@ -358,13 +356,24 @@ class MockBackend {
     }
     return {
       'league_id': leagueId,
-      'sport_id': 'football',
+      'sport_id': _sportId,
       'qualification_spots': 2,
       'team_names': _teams,
       'table': table,
       'h2h': {},
     };
   }
+
+  // Demo sport = the spec's "mystery sport" example, so nothing here assumes a real sport.
+  static const _sportId = 'kabaddi';
+  static const _sportEvents = {'raid_point': 1, 'tackle_point': 1, 'all_out': 2};
+  static const _drawAllowed = false;
+
+  static String? _side(Map<String, dynamic> m, dynamic teamId) => m['home']['team_id'] == teamId
+      ? 'home'
+      : m['away']['team_id'] == teamId
+          ? 'away'
+          : null;
 
   MockResult _event(Map<String, dynamic> b) {
     final m = _matches[b['match_id']];
@@ -378,22 +387,36 @@ class MockBackend {
         m['status'] = 'in_progress';
       case 'match_end':
         if (m['status'] != 'in_progress') return _err(409, 'ILLEGAL_TRANSITION');
+        if (!_drawAllowed && m['home']['score'] == m['away']['score'] && m['tiebreak'] == null) {
+          return _err(409, 'TIE_NOT_ALLOWED');
+        }
         m['status'] = 'completed';
       case 'score':
         if (m['status'] != 'in_progress') return _err(409, 'MATCH_NOT_IN_PROGRESS');
-        final side = m['home']['team_id'] == payload['team_id'] ? 'home' : m['away']['team_id'] == payload['team_id'] ? 'away' : null;
+        final side = _side(m, payload['team_id']);
         if (side == null) return _err(400, 'VALIDATION_ERROR');
-        m[side]['score'] = (m[side]['score'] as int) + 1;
+        final points = _sportEvents[payload['event_type']];
+        if (points == null) return _err(400, 'UNKNOWN_EVENT_TYPE');
+        m[side]['score'] = (m[side]['score'] as int) + points;
+      case 'tiebreak_winner':
+        if (m['status'] != 'in_progress') return _err(409, 'MATCH_NOT_IN_PROGRESS');
+        if (_side(m, payload['team_id']) == null) return _err(400, 'VALIDATION_ERROR');
+        m['tiebreak'] = payload['team_id'];
       case 'compensation':
         final target = (m['events'] as List).cast<Map<String, dynamic>>().where((e) => e['event_id'] == payload['compensates']).firstOrNull;
-        if (target == null || target['compensated'] == true || target['type'] != 'score') {
+        if (target == null) return _err(404, 'EVENT_NOT_FOUND');
+        if (target['compensated'] == true || !const ['score', 'tiebreak_winner'].contains(target['type'])) {
           return _err(409, 'INVALID_COMPENSATION');
         }
         target['compensated'] = true;
         target['compensated_by'] = b['event_id'];
         final tp = target['payload'] as Map;
-        final side = m['home']['team_id'] == tp['team_id'] ? 'home' : 'away';
-        m[side]['score'] = (m[side]['score'] as int) - 1;
+        if (target['type'] == 'tiebreak_winner') {
+          m['tiebreak'] = null;
+        } else {
+          final side = _side(m, tp['team_id'])!;
+          m[side]['score'] = (m[side]['score'] as int) - (_sportEvents[tp['event_type']] ?? 0);
+        }
       default:
         return _err(400, 'VALIDATION_ERROR');
     }
