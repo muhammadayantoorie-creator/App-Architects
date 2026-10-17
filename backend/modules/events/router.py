@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body
 from fastapi.responses import JSONResponse
 
 from backend.core.db import SessionLocal
-from backend.modules.events.service import append_event
+from backend.modules.events.service import append_event, score_match
 
 router = APIRouter()
 
@@ -33,3 +33,9 @@ def post_event(body: Any = Body(...)) -> JSONResponse:
     if result.channel is not None:
         _publish_match_updated(result.channel)
     return JSONResponse(status_code=result.status_code, content=result.response)
+
+
+@router.get("/audit/v1/score/{match_id}")
+def get_score(match_id: str) -> dict[str, Any]:
+    with SessionLocal() as session:
+        return score_match(session, match_id)

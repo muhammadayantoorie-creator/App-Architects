@@ -313,7 +313,11 @@ def _validate_type_rules(
             event.event_type == "tiebreak_winner"
             for event in _active_events(events)
         )
-        if totals[stream.home_team_id] == totals[stream.away_team_id] and not stream.draw_allowed and not has_tiebreak:
+        if (
+            totals[stream.home_team_id] == totals[stream.away_team_id]
+            and not stream.draw_allowed
+            and not has_tiebreak
+        ):
             raise _api_error(
                 409,
                 "TIE_NOT_ALLOWED",
@@ -433,3 +437,118 @@ def append_event(session: Session, body: Any) -> AppendResult:
     )
     session.flush()
     return AppendResult(response, 201, f"live:{stream.league_id or stream.match_id}")
+
+
+def score_match(session: Session, match_id: str) -> dict[str, Any]:
+    """Rebuild the score projection from the immutable match event log."""
+    stream = session.get(MatchStream, match_id)
+    if stream is None:
+        raise _not_found("MATCH_NOT_FOUND", "match_id", match_id)
+
+    sport = session.get(Sport, stream.sport_id)
+    if sport is None:
+        raise _not_found("SPORT_NOT_FOUND", "sport_id", stream.sport_id)
+
+    events = _events_for(session, match_id)
+    active = _active_events(events)
+    totals = _score_totals(events, stream, sport)
+    home = {
+        "team_id": stream.home_team_id,
+        "score": totals[stream.home_team_id],
+        "wickets": None,
+        "balls": None,
+        "overs": None,
+        "fair_play": 0,
+    }
+    away = {
+        "team_id": stream.away_team_id,
+        "score": totals[stream.away_team_id],
+        "wickets": None,
+        "balls": None,
+        "overs": None,
+        "fair_play": 0,
+    }
+
+    wickets_by_team = {stream.home_team_id: 0, stream.away_team_id: 0}
+    balls_by_team = {stream.home_team_id: 0, stream.away_team_id: 0}
+    for event in active:
+        team_id = event.payload.get("team_id")
+        if event.event_type == "discipline" and team_id in {
+            stream.home_team_id,
+            stream.away_team_id,
+        }:
+            if team_id == stream.home_team_id:
+                home["fair_play"] += event.payload["points"]
+            elif team_id == stream.away_team_id:
+                away["fair_play"] += event.payload["points"]
+        elif (
+            sport.scoring_model == "innings"
+            and event.event_type == "score"
+            and team_id in wickets_by_team
+        ):
+            scoring = sport.config["scoring_events"][event.payload["event_type"]]
+            balls_by_team[team_id] += int(scoring["legal_ball"])
+            wickets_by_team[team_id] += int(scoring["wicket"])
+
+    if sport.scoring_model == "innings":
+        balls_per_over = sport.config["periods"]["balls_per_over"]
+        for row, team_id in ((home, stream.home_team_id), (away, stream.away_team_id)):
+            balls = balls_by_team[team_id]
+            row["balls"] = balls
+            row["wickets"] = wickets_by_team[team_id]
+            row["overs"] = f"{balls // balls_per_over}.{balls % balls_per_over}"
+
+    active_tiebreaks = [
+        event for event in active if event.event_type == "tiebreak_winner"
+    ]
+    tiebreak_winner = (
+        active_tiebreaks[-1].payload["team_id"] if active_tiebreaks else None
+    )
+    if totals[stream.home_team_id] > totals[stream.away_team_id]:
+        winner = stream.home_team_id
+    elif totals[stream.away_team_id] > totals[stream.home_team_id]:
+        winner = stream.away_team_id
+    else:
+        winner = tiebreak_winner
+
+    status = _status(events)
+    if status != "completed":
+        outcome = "pending"
+    elif winner is not None:
+        outcome = "home_win" if winner == stream.home_team_id else "away_win"
+    elif stream.draw_allowed:
+        outcome = "draw"
+    else:
+        outcome = "undecided"
+
+    compensated_by = {
+        str(event.payload["compensates"]): event.event_id
+        for event in events
+        if event.event_type == "compensation"
+    }
+    projected_events = [
+        {
+            "sequence": event.sequence,
+            "event_id": event.event_id,
+            "type": event.event_type,
+            "payload": event.payload,
+            "signature": event.signature,
+            "compensated": event.event_id in compensated_by,
+            "compensated_by": compensated_by.get(event.event_id),
+        }
+        for event in events
+    ]
+
+    return {
+        "match_id": stream.match_id,
+        "sport_id": stream.sport_id,
+        "league_id": stream.league_id,
+        "status": status,
+        "outcome": outcome,
+        "winner_team_id": winner,
+        "tiebreak_winner_team_id": tiebreak_winner,
+        "home": home,
+        "away": away,
+        "version": len(events),
+        "events": projected_events,
+    }
