@@ -40,7 +40,7 @@ class NasconApp extends StatelessWidget {
       scaffoldMessengerKey: messengerKey,
       theme: buildTheme(seed, Brightness.light),
       darkTheme: buildTheme(seed, Brightness.dark),
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       home: loggedIn ? const Shell() : const LoginScreen(),
     );
   }

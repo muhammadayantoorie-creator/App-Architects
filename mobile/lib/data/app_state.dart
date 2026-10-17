@@ -58,7 +58,7 @@ class AppState extends ChangeNotifier {
 
   Map<String, dynamic> get tenant => me?['tenant'] is Map ? Map<String, dynamic>.from(me!['tenant'] as Map) : {};
   String get tenantName => tenant['name'] as String? ?? 'NaSCon League';
-  Color get seed => parseHex(tenant['primary_color']) ?? const Color(0xFF1565C0);
+  Color get seed => parseHex(tenant['primary_color']) ?? const Color(0xFF1B5E20);
 
   String? sportIdFor(String leagueId) {
     for (final l in leagues) {
