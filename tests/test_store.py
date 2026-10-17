@@ -58,6 +58,13 @@ def test_happy_path_exact_shape(client, reset):
     assert pdf.startswith(b"%PDF")
     assert b"ord-001" in pdf
     assert b"PKR 4500.00" in pdf
+
+    from backend.core.redis_client import get_redis
+
+    events = [fields for _, fields in get_redis().xrange("orders.events")]
+    paid = [fields for fields in events if fields.get("order_id") == "ord-001"][-1]
+    assert paid["type"] == "order.status_changed"
+    assert paid["from"] == "pending" and paid["to"] == "paid"
     assert _inv(client, M) == {"variant_id": M, "stock": 0, "reserved": 0}
 
 

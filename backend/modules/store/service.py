@@ -200,14 +200,17 @@ def _replay(existing: Order, request_hash: str) -> tuple[int, dict[str, Any]]:
     )
 
 
-def _emit_order_event(order_id: str, status: str, total_minor: int | None) -> None:
+def _emit_order_event(order_id: str, from_status: str, to_status: str, total_minor: int | None) -> None:
     # Best effort: the domain event queue must never fail a committed checkout.
     try:
         get_redis().xadd(
             ORDERS_STREAM,
             {
+                "type": "order.status_changed",
                 "order_id": order_id,
-                "status": status,
+                "from": from_status,
+                "to": to_status,
+                "status": to_status,
                 "total_minor": str(total_minor if total_minor is not None else 0),
                 "at": now_iso(),
             },
@@ -349,7 +352,7 @@ def checkout(body: Any) -> tuple[int, dict[str, Any]]:
     gateway = _gateway_charge(req.token)
     if not gateway.ok:
         _release(req.items, req.order_id)
-        _emit_order_event(req.order_id, "payment_failed", None)
+        _emit_order_event(req.order_id, "pending", "cancelled", None)
         if gateway.error_code == "PAYMENT_CAPTURE_FAILED":
             raise ApiError(
                 402,
@@ -390,7 +393,7 @@ def checkout(body: Any) -> tuple[int, dict[str, Any]]:
             pass
         raise
 
-    _emit_order_event(req.order_id, "paid", response["total_minor"])
+    _emit_order_event(req.order_id, "pending", "paid", response["total_minor"])
     return 201, response
 
 

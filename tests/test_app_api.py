@@ -35,6 +35,15 @@ def test_requires_token(client, reset):
     assert_error(client.get("/api/v1/leagues"), 401, "UNAUTHENTICATED")
 
 
+def test_live_accepts_only_verified_header_or_query_token(client, mgr):
+    path = "/api/v1/live?league_id=missing-league"
+    assert_error(client.get(path), 401, "UNAUTHENTICATED")
+    assert_error(client.get(path + "&token=broken.jwt.token"), 401, "UNAUTHENTICATED")
+    token = mgr["Authorization"].removeprefix("Bearer ")
+    assert_error(client.get(path + "&token=" + token), 404, "LEAGUE_NOT_FOUND")
+    assert_error(client.get(path, headers=mgr), 404, "LEAGUE_NOT_FOUND")
+
+
 def test_me_has_tenant_branding(client, mgr):
     me = client.get("/api/v1/me", headers=mgr).json()
     assert me["role"] == "club_manager" and me["club_id"] == "club-alpha-1"
@@ -163,3 +172,32 @@ def test_offline_sync_via_app_route(client, org):
     assert r.json()["results"][0]["status"] == "applied"
     again = client.post("/api/v1/offline-sync", json=body, headers=org).json()
     assert again["results"][0]["status"] == "duplicate"
+
+
+def test_app_sync_and_history_respect_roles_and_tenants(client, mgr, org):
+    setup = {
+        "league": {"league_id": "beta-roster", "tenant_id": "tenant-beta", "sport_id": "football",
+                   "transfer_window": {"open": "2026-10-01", "close": "2026-10-31"}},
+        "squads": [{"squad_id": "beta-squad", "club_id": "club-beta-1", "tenant_id": "tenant-beta", "name": "B"}],
+        "players": [{"player_id": "beta-history-player", "name": "Beta", "position": "gk",
+                     "squad_id": "beta-squad", "role": "starter"}],
+        "matches_in_progress": [],
+    }
+    assert client.post("/audit/v1/roster/setup", json=setup).status_code == 201
+    assert_error(client.get("/api/v1/players/beta-history-player/history", headers=mgr), 403, "FORBIDDEN")
+
+    transfer = {"request_id": "foreign-action", "league_id": "beta-roster",
+                "player_id": "beta-history-player", "type": "release", "from_squad_id": "beta-squad",
+                "to_squad_id": None, "effective_date": "2026-10-17", "loan_end_date": None,
+                "reason": "test", "requested_by": "user-manager"}
+    assert_error(client.post("/api/v1/roster/actions", json=transfer, headers=mgr), 403, "FORBIDDEN")
+    batch = {"device_id": "foreign-test", "actions": [{"action_id": "x", "type": "roster_transfer",
+             "queued_at": "2026-10-17T11:00:00Z", "base_version": 0, "payload": transfer}]}
+    assert_error(client.post("/api/v1/offline-sync", json=batch, headers=mgr), 403, "FORBIDDEN")
+    assert_error(client.post("/api/v1/offline-sync", json=batch, headers=org), 403, "FORBIDDEN")
+
+    score = {"device_id": "score-by-manager", "actions": [{"action_id": "y", "type": "score_event",
+             "queued_at": "2026-10-17T11:00:00Z", "base_version": 0,
+             "payload": {"event_id": "x", "match_id": "demo-match-4", "type": "score",
+                         "payload": {"team_id": "club-alpha-1", "event_type": "goal"}}}]}
+    assert_error(client.post("/api/v1/offline-sync", json=score, headers=mgr), 403, "FORBIDDEN")

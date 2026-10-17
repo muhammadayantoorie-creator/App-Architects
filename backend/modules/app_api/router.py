@@ -15,7 +15,7 @@ from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import select
 
-from backend.core.auth import current_principal
+from backend.core.auth import current_principal, decode_token, principal_from_claims
 from backend.core.db import SessionLocal
 from backend.core.errors import ApiError
 from backend.modules.app_api.models import PinnedProduct
@@ -40,6 +40,15 @@ def _uid(p: dict[str, Any]) -> str:
 
 def _forbid(message: str = "Your role cannot perform this action.") -> ApiError:
     return ApiError(403, "FORBIDDEN", message)
+
+
+def _live_principal(request: Request) -> dict[str, Any]:
+    if request.headers.get("authorization"):
+        return current_principal(request)
+    token = request.query_params.get("token")
+    if not token:
+        raise ApiError(401, "UNAUTHENTICATED", "Missing Bearer token")
+    return principal_from_claims(decode_token(token))
 
 
 def _league_visible(p: dict[str, Any], league: League) -> bool:
@@ -278,10 +287,20 @@ def club(club_id: str, p: dict = Depends(current_principal)) -> dict[str, Any]:
 
 
 @router.get("/players/{player_id}/history")
-def player_history(player_id: str, _p: dict = Depends(current_principal)) -> dict[str, Any]:
+def player_history(player_id: str, p: dict = Depends(current_principal)) -> dict[str, Any]:
+    from backend.modules.roster.models import RosterLeague, RosterPlayer
     from backend.modules.roster.service import player_history as history
 
     with SessionLocal.begin() as session:
+        player = session.scalars(
+            select(RosterPlayer)
+            .where(RosterPlayer.player_id == player_id)
+            .order_by(RosterPlayer.id.desc())
+        ).first()
+        if player is not None and p.get("role") != ADMIN:
+            league = session.get(RosterLeague, player.league_id)
+            if league is None or league.tenant_id != p.get("tenant_id"):
+                raise _forbid()
         return history(session, player_id, None)
 
 
@@ -332,13 +351,15 @@ def post_event(body: Any = Body(...), p: dict = Depends(current_principal)) -> J
     return JSONResponse(status_code=result.status_code, content=result.response)
 
 
-def _club_of_squad(session, squad_id: Any) -> str | None:
+def _club_of_squad(session, league_id: Any, squad_id: Any) -> tuple[str, str] | None:
     from backend.modules.roster.models import Squad
 
-    if not isinstance(squad_id, str):
+    if not isinstance(league_id, str) or not isinstance(squad_id, str):
         return None
-    squad = session.scalars(select(Squad).where(Squad.squad_id == squad_id)).first()
-    return squad.club_id if squad is not None else None
+    squad = session.scalars(
+        select(Squad).where(Squad.league_id == league_id, Squad.squad_id == squad_id)
+    ).first()
+    return (squad.club_id, squad.tenant_id) if squad is not None else None
 
 
 @router.post("/roster/actions")
@@ -349,7 +370,8 @@ def roster_action(body: Any = Body(...), p: dict = Depends(current_principal)) -
         raise _forbid()
     if p.get("role") == MANAGER and isinstance(body, dict):
         with SessionLocal() as session:
-            if _club_of_squad(session, body.get("from_squad_id")) not in (None, p.get("club_id")):
+            owner = _club_of_squad(session, body.get("league_id"), body.get("from_squad_id"))
+            if owner is not None and owner != (p.get("club_id"), p.get("tenant_id")):
                 raise _forbid("You can only move players from your own club.")
     status, response = transfer(None, body)
     return JSONResponse(status_code=status, content=response)
@@ -438,8 +460,24 @@ def add_player(club_id: str, body: Any = Body(...), p: dict = Depends(current_pr
 def offline_sync(body: Any = Body(...), p: dict = Depends(current_principal)) -> dict[str, Any]:
     from backend.modules.offline_sync.service import process_offline_sync
 
-    if p.get("role") == "viewer":
+    if p.get("role") not in (ADMIN, ORGANIZER, MANAGER):
         raise _forbid()
+    if p.get("role") != ADMIN and isinstance(body, dict) and isinstance(body.get("actions"), list):
+        with SessionLocal() as session:
+            for action in body["actions"]:
+                if not isinstance(action, dict):
+                    continue
+                payload = action.get("payload")
+                if not isinstance(payload, dict):
+                    continue
+                if action.get("type") == "score_event":
+                    stream = session.get(MatchStream, payload.get("match_id")) if isinstance(payload.get("match_id"), str) else None
+                    if p.get("role") != ORGANIZER or (stream is not None and not _can_score(p, stream.league_id)):
+                        raise _forbid()
+                elif action.get("type") == "roster_transfer":
+                    owner = _club_of_squad(session, payload.get("league_id"), payload.get("from_squad_id"))
+                    if p.get("role") != MANAGER or (owner is not None and owner != (p.get("club_id"), p.get("tenant_id"))):
+                        raise _forbid()
     return process_offline_sync(body)
 
 
@@ -504,7 +542,7 @@ def _league_snapshot(league_id: str) -> dict[str, dict[str, Any]]:
 
 
 @router.get("/live")
-async def live(request: Request, league_id: str, p: dict = Depends(current_principal)) -> StreamingResponse:
+async def live(request: Request, league_id: str, p: dict = Depends(_live_principal)) -> StreamingResponse:
     with SessionLocal() as session:
         _require_league(session, p, league_id)
 
