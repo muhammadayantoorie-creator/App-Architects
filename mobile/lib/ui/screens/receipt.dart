@@ -9,6 +9,7 @@ import '../../core/formatters.dart';
 import '../../core/nav.dart';
 import '../../data/repository.dart';
 import '../widgets/common.dart';
+import '../widgets/network_chip.dart';
 
 class ReceiptScreen extends StatefulWidget {
   const ReceiptScreen({super.key, required this.order, required this.names});
@@ -59,7 +60,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     return PopScope(
       canPop: true,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Receipt')),
+        appBar: AppBar(title: const Text('Receipt'), actions: const [NetworkChip()]),
         body: SafeArea(
           child: ListView(padding: const EdgeInsets.all(16), children: [
             Center(

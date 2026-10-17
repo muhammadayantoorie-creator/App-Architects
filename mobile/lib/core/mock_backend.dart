@@ -47,7 +47,7 @@ class MockBackend {
 
   static const _tenant = {
     'tenant_id': 'tenant-alpha',
-    'name': 'Alpha League',
+    'name': 'Alpha Sports',
     'logo_url': null,
     'primary_color': '#1565C0',
     'secondary_color': '#FFB300',
@@ -135,14 +135,13 @@ class MockBackend {
 
     _products = [
       {
-        'product_id': 'demo-prod-jersey',
-        'name': 'Alpha FC Home Jersey',
+        'product_id': 'prod-jersey-001',
+        'name': 'Alpha Home Jersey',
         'category': 'apparel',
         'description': 'Official 2026 home jersey. Breathable fabric.',
         'variants': [
-          {'variant_id': 'demo-var-jersey-s', 'label': 'S', 'price_minor': 450000, 'currency': 'PKR', 'stock': 12},
-          {'variant_id': 'demo-var-jersey-m', 'label': 'M', 'price_minor': 450000, 'currency': 'PKR', 'stock': 3},
-          {'variant_id': 'demo-var-jersey-l', 'label': 'L', 'price_minor': 450000, 'currency': 'PKR', 'stock': 0},
+          {'variant_id': 'var-jersey-001-M', 'label': 'M', 'price_minor': 450000, 'currency': 'PKR', 'stock': 1},
+          {'variant_id': 'var-jersey-001-L', 'label': 'L', 'price_minor': 450000, 'currency': 'PKR', 'stock': 5},
         ],
       },
       {
@@ -203,7 +202,8 @@ class MockBackend {
           return (200, {
             'sport_id': id,
             'name': 'Football',
-            'allows_draw': true,
+            'scoring_model': 'event',
+            'draw_allowed': true,
             'scoring_events': {
               'goal': {'points': 1},
               'penalty_goal': {'points': 1},
@@ -213,7 +213,18 @@ class MockBackend {
         case ['clubs', final id]:
           return _teams.containsKey(id) ? (200, _club(id)) : _err(404, 'CLUB_NOT_FOUND');
         case ['players', final id, 'history']:
-          return (200, {'player_id': id, 'items': _history[id] ?? []});
+          String? squad;
+          _roster.forEach((club, list) {
+            final p = list.where((x) => x['player_id'] == id).firstOrNull;
+            if (p != null) squad = '${p['squad_id']}';
+          });
+          return (200, {
+            'player_id': id,
+            'league_id': 'demo-roster-league',
+            'current_squad_id': squad,
+            'parent_squad_id': null,
+            'history': _history[id] ?? [],
+          });
         case ['store', 'products']:
           return (200, {'items': _products});
       }
@@ -224,6 +235,28 @@ class MockBackend {
           return _event(b);
         case ['roster', 'actions']:
           return _rosterAction(b, user.$1);
+        case ['clubs', final id, 'players']:
+          final list = _roster[id];
+          if (list == null) return _err(404, 'CLUB_NOT_FOUND');
+          if ('${b['name'] ?? ''}'.trim().isEmpty || '${b['position'] ?? ''}'.trim().isEmpty) {
+            return _err(400, 'VALIDATION_ERROR');
+          }
+          if (list.length >= 25) return _err(409, 'SQUAD_FULL');
+          final player = <String, dynamic>{
+            'player_id': 'p-$id-${DateTime.now().millisecondsSinceEpoch % 1000000}',
+            'name': '${b['name']}'.trim(),
+            'position': '${b['position']}'.trim(),
+            'role': b['role'] ?? 'substitute',
+            'squad_id': _squad(id),
+            'league_id': 'demo-roster-league',
+            'audit_count': 1,
+            'on_loan': false,
+          };
+          list.add(player);
+          _history['${player['player_id']}'] = [
+            _audit('add', '${player['player_id']}', null, _squad(id), _today(), 'New registration', user.$1),
+          ];
+          return (201, player);
         case ['checkout']:
           return _checkout(b);
         case ['offline-sync']:
@@ -424,25 +457,55 @@ class MockBackend {
         'audit_count': (player['audit_count'] as int) + 1,
       });
     }
-    final entry = {
-      'type': type,
-      'from_squad_id': b['from_squad_id'],
-      'to_squad_id': b['to_squad_id'],
-      'effective_date': b['effective_date'],
-      'reason': b['reason'],
-      'requested_by': userId,
-    };
-    (_history[player['player_id'] as String] ??= []).add(entry);
-    final liveClubs = _matches.values
-        .where((m) => m['status'] == 'in_progress')
-        .expand((m) => [m['home']['team_id'], m['away']['team_id']]);
-    final deferred = liveClubs.contains(from);
+    final live = _matches.values
+        .where((m) =>
+            m['status'] == 'in_progress' &&
+            (m['home']['team_id'] == from || m['away']['team_id'] == from))
+        .firstOrNull;
+    final state = live != null ? 'deferred_until_match_end' : 'active';
+    final entry = _audit('$type', '${player['player_id']}', b['from_squad_id'] as String?,
+        b['to_squad_id'] as String?, '${b['effective_date']}', '${b['reason'] ?? ''}', userId,
+        state: state);
+    (_history['${player['player_id']}'] ??= []).add(entry);
     return (201, {
-      'state': deferred ? 'deferred_until_match_end' : 'applied',
-      'registration': {'player_id': player['player_id'], 'squad_id': b['to_squad_id']},
+      'request_id': b['request_id'],
+      'status': 'accepted',
+      'state': state,
+      'blocking_match_id': live?['match_id'],
+      'registration': type == 'release'
+          ? null
+          : {
+              'player_id': player['player_id'],
+              'league_id': b['league_id'],
+              'squad_id': b['to_squad_id'],
+              'parent_squad_id': type == 'loan' ? b['from_squad_id'] : null,
+              'registration_type': type,
+              'start_date': b['effective_date'],
+              'loan_end_date': b['loan_end_date'],
+              'role': 'substitute',
+            },
       'audit_entry': entry,
     });
   }
+
+  int _auditSeq = 0;
+  static String _today() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
+
+  Map<String, dynamic> _audit(String action, String playerId, String? from, String? to,
+          String effective, String why, String who, {String state = 'active'}) =>
+      {
+        'audit_id': 'au-${(++_auditSeq).toString().padLeft(4, '0')}',
+        'action': action,
+        'player_id': playerId,
+        'league_id': 'demo-roster-league',
+        'from_squad_id': from,
+        'to_squad_id': to,
+        'effective_date': effective,
+        'state': state,
+        'who': who,
+        'when': '${DateTime.now().toUtc().toIso8601String().substring(0, 19)}Z',
+        'why': why,
+      };
 
   // ---------------------------------------------------------------- store
 
@@ -451,8 +514,8 @@ class MockBackend {
     if (_orders.containsKey(orderId)) return (201, _orders[orderId]);
     final token = (b['payment'] as Map?)?['token'];
     final code = b['discount_code'] as String?;
-    if (code != null && code.toUpperCase() != 'NASCON10') return _err(400, 'INVALID_DISCOUNT_CODE');
     final items = <Map<String, dynamic>>[];
+    final pdfLines = <String>[];
     var subtotal = 0;
     for (final i in (b['items'] as List? ?? []).cast<Map>()) {
       Map<String, dynamic>? variant;
@@ -472,15 +535,14 @@ class MockBackend {
       subtotal += line;
       items.add({
         'variant_id': variant['variant_id'],
-        'name': product!['name'],
-        'label': variant['label'],
         'quantity': qty,
-        'price_minor': variant['price_minor'],
-        'line_total_minor': line,
+        'unit_price_minor': variant['price_minor'],
       });
+      pdfLines.add('$qty x ${product!['name']} (${variant['label']})  PKR ${(line / 100).toStringAsFixed(2)}');
     }
+    if (code != null && code != 'WELCOME10') return _err(400, 'INVALID_DISCOUNT_CODE');
     if (token == 'tok_declined') return _err(402, 'PAYMENT_DECLINED');
-    if (token == 'tok_capture_failed') return _err(402, 'PAYMENT_CAPTURE_FAILED');
+    if (token == 'tok_capture_fail') return _err(402, 'PAYMENT_CAPTURE_FAILED');
     for (final i in items) {
       for (final p in _products) {
         for (final v in (p['variants'] as List).cast<Map<String, dynamic>>()) {
@@ -488,7 +550,7 @@ class MockBackend {
         }
       }
     }
-    final discount = code == null ? 0 : subtotal ~/ 10;
+    final discount = code == null ? 0 : subtotal * 10 ~/ 100;
     final total = subtotal - discount;
     final order = {
       'order_id': orderId,
@@ -498,24 +560,33 @@ class MockBackend {
       'subtotal_minor': subtotal,
       'discount_minor': discount,
       'total_minor': total,
-      'payment': {'status': 'captured', 'token': token},
+      'payment': {'authorization_id': 'auth_${_orders.length + 1}', 'capture_id': 'cap_${_orders.length + 1}', 'state': 'captured'},
       'receipt': {
-        'payload': {'order_id': orderId, 'total_minor': total},
+        'payload': {
+          'order_id': orderId,
+          'customer_id': b['customer_id'],
+          'items': items,
+          'subtotal_minor': subtotal,
+          'discount_minor': discount,
+          'total_minor': total,
+          'currency': 'PKR',
+          'paid_at': '${DateTime.now().toUtc().toIso8601String().substring(0, 19)}Z',
+        },
         'signature': 'demo-signature',
-        'pdf_base64': base64Encode(_pdf(orderId, items, subtotal, discount, total)),
+        'pdf_base64': base64Encode(_pdf(orderId, pdfLines, subtotal, discount, total)),
       },
     };
     _orders[orderId] = order;
     return (201, order);
   }
 
-  List<int> _pdf(String orderId, List<Map<String, dynamic>> items, int sub, int disc, int total) {
+  List<int> _pdf(String orderId, List<String> itemLines, int sub, int disc, int total) {
     String money(int m) => 'PKR ${(m / 100).toStringAsFixed(2)}';
     final lines = [
-      'Alpha League Store - Receipt',
+      'Alpha Sports Store - Receipt',
       'Order: $orderId',
       '',
-      for (final i in items) '${i['quantity']} x ${i['name']} (${i['label']})  ${money(i['line_total_minor'] as int)}',
+      ...itemLines,
       '',
       'Subtotal: ${money(sub)}',
       'Discount: ${money(disc)}',
@@ -563,7 +634,7 @@ class MockBackend {
       final id = '${isScore ? payload['event_id'] : payload['request_id']}';
       if (_seenIds.contains(id)) {
         duplicate++;
-        results.add({'action_id': a['action_id'], 'status': 'duplicate', 'resolution': null, 'error_code': null, 'processed_order': order, 'server_version': null, 'signature': null});
+        results.add({'action_id': a['action_id'], 'status': 'duplicate', 'resolution': 'skipped_duplicate', 'error_code': null, 'processed_order': order, 'server_version': null, 'signature': null});
         continue;
       }
       final baseVersion = (a['base_version'] as num?)?.toInt();
@@ -574,7 +645,7 @@ class MockBackend {
         results.add({
           'action_id': a['action_id'],
           'status': 'applied',
-          'resolution': isScore && before != null && baseVersion != null && baseVersion < before ? 'rebased_append' : 'applied',
+          'resolution': isScore && before != null && baseVersion != null && baseVersion < before ? 'rebased_append' : 'appended',
           'error_code': null,
           'processed_order': order,
           'server_version': isScore ? (res as Map)['match_version'] : null,
@@ -585,7 +656,7 @@ class MockBackend {
         results.add({
           'action_id': a['action_id'],
           'status': 'rejected',
-          'resolution': null,
+          'resolution': 'server_wins',
           'error_code': ((res as Map)['error'] as Map)['code'],
           'processed_order': order,
           'server_version': null,

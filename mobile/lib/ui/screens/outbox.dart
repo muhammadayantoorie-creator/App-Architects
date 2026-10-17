@@ -7,6 +7,7 @@ import '../../core/nav.dart';
 import '../../data/app_state.dart';
 import '../../data/sync/outbox.dart';
 import '../widgets/common.dart';
+import '../widgets/network_chip.dart';
 
 class OutboxScreen extends StatefulWidget {
   const OutboxScreen({super.key});
@@ -87,7 +88,7 @@ class _OutboxScreenState extends State<OutboxScreen> {
     }
     final t = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Outbox')),
+      appBar: AppBar(title: const Text('Outbox'), actions: const [NetworkChip()]),
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(16), children: [
           Card(

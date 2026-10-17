@@ -23,6 +23,152 @@ Future<bool?> showRosterSheet(
       builder: (_) => _RosterSheet(club: club, player: player),
     );
 
+/// Club manager: register a new player in the club's squad. Needs a connection.
+Future<bool?> showAddPlayerSheet(BuildContext context, {required Map<String, dynamic> club}) =>
+    showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => _AddPlayerSheet(club: club),
+    );
+
+class _AddPlayerSheet extends StatefulWidget {
+  const _AddPlayerSheet({required this.club});
+  final Map<String, dynamic> club;
+
+  @override
+  State<_AddPlayerSheet> createState() => _AddPlayerSheetState();
+}
+
+class _AddPlayerSheetState extends State<_AddPlayerSheet> {
+  final _name = TextEditingController();
+  final _position = TextEditingController();
+  String _role = 'substitute';
+  bool _busy = false;
+  String? _error;
+
+  static const _roles = ['captain', 'vice_captain', 'starter', 'substitute'];
+
+  late final List<String> _knownPositions = asList(widget.club['roster'])
+      .map((p) => '${p['position'] ?? ''}')
+      .where((p) => p.isNotEmpty)
+      .toSet()
+      .toList();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _position.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _name.text.trim();
+    final position = _position.text.trim().toLowerCase();
+    if (name.isEmpty || position.isEmpty) {
+      setState(() => _error = 'Enter the player name and position.');
+      return;
+    }
+    final ok = await confirmDialog(context,
+        title: 'Add player?',
+        message: 'Add $name (${position.toUpperCase()}, ${humanize(_role)}) to ${widget.club['name']}.',
+        confirmLabel: 'Add player');
+    if (!ok || !mounted) return;
+    final s = context.read<AppState>();
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await s.api.post('/api/v1/clubs/${widget.club['club_id']}/players', {
+        'request_id': newId(),
+        'league_id': widget.club['roster_league_id'],
+        'squad_id': widget.club['squad_id'],
+        'name': name,
+        'position': position,
+        'role': _role,
+        'requested_by': s.userId,
+      });
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      showSnack('$name added to the squad.');
+    } on ApiException catch (e) {
+      setState(() => _error = e.isNetwork ? offlineNoQueueMessage : e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('Add player', style: t.textTheme.titleLarge),
+          Text('${widget.club['name'] ?? ''}', style: t.textTheme.bodyMedium),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _name,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(labelText: 'Player name'),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _position,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: 'Position',
+              hintText: _knownPositions.isEmpty ? 'e.g. gk' : 'e.g. ${_knownPositions.take(4).join(', ')}',
+            ),
+          ),
+          if (_knownPositions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final p in _knownPositions)
+                ActionChip(
+                  label: Text(p.toUpperCase()),
+                  tooltip: 'Use position $p',
+                  onPressed: () => setState(() => _position.text = p),
+                ),
+            ]),
+          ],
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _role,
+            decoration: const InputDecoration(labelText: 'Role'),
+            items: [
+              for (final r in _roles) DropdownMenuItem(value: r, child: Text(humanize(r))),
+            ],
+            onChanged: (v) => setState(() => _role = v ?? _role),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Row(children: [
+              Icon(Icons.error_outline, color: t.colorScheme.error, semanticLabel: 'Error'),
+              const SizedBox(width: 8),
+              Expanded(child: Text(_error!, style: TextStyle(color: t.colorScheme.error))),
+            ]),
+          ],
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _busy ? null : _submit,
+            child: _busy
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5, semanticsLabel: 'Adding'))
+                : const Text('Review and add'),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
 class _RosterSheet extends StatefulWidget {
   const _RosterSheet({required this.club, required this.player});
   final Map<String, dynamic> club;
