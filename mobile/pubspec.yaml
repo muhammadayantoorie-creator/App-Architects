@@ -69,6 +69,7 @@ flutter:
   assets:
     - assets/icon.png
     - assets/stadium.jpg
+    - assets/products/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

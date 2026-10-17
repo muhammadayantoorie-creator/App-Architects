@@ -47,10 +47,12 @@ class _StoreTabState extends State<StoreTab> with Loader {
               child: GridView.count(
                 padding: const EdgeInsets.all(12),
                 crossAxisCount: MediaQuery.sizeOf(context).width >= 600 ? 3 : 2,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 0.72,
-                children: [for (final p in items) ProductTile(product: p)],
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.66,
+                children: [
+                  for (var i = 0; i < items.length; i++) ProductTile(product: items[i], featured: i == 0),
+                ],
               ),
             ),
           ),
@@ -67,29 +69,40 @@ class _CartBar extends StatelessWidget {
     final cart = context.watch<Cart>();
     final canBuy = context.select<AppState, bool>((s) => s.canBuy);
     if (cart.isEmpty || !canBuy) return const SizedBox.shrink();
-    final t = Theme.of(context);
-    return Material(
-      color: t.colorScheme.secondaryContainer,
-      child: InkWell(
-        onTap: () => Navigator.push(
-            context, MaterialPageRoute<void>(builder: (_) => const CheckoutScreen())),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(children: [
-            Icon(Icons.shopping_cart, color: t.colorScheme.onSecondaryContainer,
-                semanticLabel: 'Cart'),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Cart · ${cart.count} ${cart.count == 1 ? 'item' : 'items'} · ${money(cart.totalMinor, cart.lines.first.currency)}',
-                style: t.textTheme.titleSmall?.copyWith(color: t.colorScheme.onSecondaryContainer),
+    const ink = AppColors.onPrimary;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Material(
+        color: AppColors.primary,
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.push(
+              context, MaterialPageRoute<void>(builder: (_) => const CheckoutScreen())),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+            child: Row(children: [
+              const CircleAvatar(
+                radius: 20,
+                backgroundColor: ink,
+                child: Icon(Icons.shopping_cart, color: AppColors.primary, semanticLabel: 'Cart'),
               ),
-            ),
-            Text('View cart',
-                style: t.textTheme.labelLarge?.copyWith(color: t.colorScheme.onSecondaryContainer)),
-            Icon(Icons.chevron_right, color: t.colorScheme.onSecondaryContainer,
-                semanticLabel: 'View cart'),
-          ]),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '${cart.count} ${cart.count == 1 ? 'ITEM' : 'ITEMS'} · ${money(cart.totalMinor, cart.lines.first.currency)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontFamily: condensedFont, color: ink, fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+              ),
+              const Text('VIEW CART',
+                  style: TextStyle(
+                      fontFamily: condensedFont, color: ink, fontSize: 16, fontWeight: FontWeight.w900)),
+              const Icon(Icons.chevron_right, color: ink, semanticLabel: 'View cart'),
+            ]),
+          ),
         ),
       ),
     );
@@ -123,6 +136,20 @@ IconData categoryIcon(String? category) => switch (category) {
       _ => Icons.shopping_bag_outlined,
     };
 
+/// Bundled product artwork, picked from the product's name/category.
+String productArt(Map<String, dynamic> p) {
+  final s = '${p['name'] ?? ''} ${p['category'] ?? ''}'.toLowerCase();
+  if (s.contains('scarf')) return 'assets/products/scarf.png';
+  if (s.contains('cap') || s.contains('hat')) return 'assets/products/cap.png';
+  if (s.contains('jersey') || s.contains('shirt') || s.contains('kit') || s.contains('apparel')) {
+    return 'assets/products/jersey.png';
+  }
+  if (s.contains('digital') || s.contains('ticket') || s.contains('pass')) {
+    return 'assets/products/digital.png';
+  }
+  return 'assets/products/bag.png';
+}
+
 int totalStock(Map<String, dynamic> p) =>
     asList(p['variants']).fold(0, (n, v) => n + ((v['stock'] as num?)?.toInt() ?? 0));
 
@@ -133,12 +160,12 @@ String stockLabel(int stock) => stock <= 0
         : 'In stock';
 
 class ProductTile extends StatelessWidget {
-  const ProductTile({super.key, required this.product});
+  const ProductTile({super.key, required this.product, this.featured = false});
   final Map<String, dynamic> product;
+  final bool featured;
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
     final variants = asList(product['variants']);
     final prices = variants.map((v) => (v['price_minor'] as num?) ?? 0).toList()..sort();
     final currency = variants.isEmpty ? 'PKR' : variants.first['currency'] as String?;
@@ -149,51 +176,86 @@ class ProductTile extends StatelessWidget {
             ? money(prices.first, currency)
             : 'From ${money(prices.first, currency)}';
     final name = '${product['name'] ?? ''}';
-    const tiles = [Color(0xFFD84315), Color(0xFF1565C0), Color(0xFF2E7D32), Color(0xFF6A1B9A), Color(0xFF00838F)];
-    final tile = tiles['${product['product_id']}'.hashCode.abs() % tiles.length];
-    return Card(
-      child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => ProductScreen(productId: product['product_id'] as String, product: product),
-          ),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Expanded(
-            child: Container(
-              color: tile,
-              alignment: Alignment.center,
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(categoryIcon(product['category'] as String?),
-                    size: 44, color: Colors.white, semanticLabel: humanize(product['category'] as String?)),
-                const SizedBox(height: 4),
-                Text(name.isEmpty ? '' : name[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.white70, fontSize: 18, fontWeight: FontWeight.w800)),
-              ]),
+    final category = humanize(product['category'] as String?);
+    const ink = Color(0xFF0B0B0B);
+    const condensed = TextStyle(fontFamily: condensedFont, color: ink, fontWeight: FontWeight.w800);
+    final stockText = stock <= 0 ? 'SOLD OUT' : stock <= 5 ? '$stock LEFT' : 'IN STOCK';
+    return Semantics(
+      button: true,
+      label: '$name, $category, $price, ${stockLabel(stock)}',
+      child: ExcludeSemantics(
+        child: Material(
+          color: const Color(0xFFF2F2F2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => ProductScreen(productId: product['product_id'] as String, product: product),
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 2),
-              Text(price,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.primary)),
-              const SizedBox(height: 2),
-              Text(stock <= 0 ? 'Sold out' : stock <= 5 ? '$stock left' : 'In stock',
-                  style: t.textTheme.bodySmall?.copyWith(
-                      color: stock <= 0 ? AppColors.live : AppColors.textSub,
-                      fontWeight: stock <= 0 ? FontWeight.w700 : null)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: featured ? AppColors.primary : const Color(0xFFCFCFCF),
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Stack(children: [
+                    Positioned.fill(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 34, 14, 8),
+                        child: Image.asset(productArt(product), fit: BoxFit.contain),
+                      ),
+                    ),
+                    Positioned(
+                      top: 10,
+                      left: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(20)),
+                        child: Text(category.toUpperCase(),
+                            style: condensed.copyWith(fontSize: 12, letterSpacing: 0.5)),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(name.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: condensed.copyWith(fontSize: 18, height: 1.05)),
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(price,
+                        style: condensed.copyWith(fontSize: 24, fontWeight: FontWeight.w900, height: 1.1)),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: stock <= 0 ? AppColors.live : ink,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(stockText,
+                        style: condensed.copyWith(
+                            fontSize: 12,
+                            letterSpacing: 0.5,
+                            color: stock <= 0 || stock > 5 ? Colors.white : AppColors.primary)),
+                  ),
+                ]),
+              ),
             ]),
           ),
-        ]),
+        ),
       ),
     );
   }
