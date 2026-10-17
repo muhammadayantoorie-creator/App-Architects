@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/config.dart';
+import '../../core/nav.dart';
 import '../../data/app_state.dart';
 import 'settings.dart';
 
@@ -36,8 +37,10 @@ class _LoginScreenState extends State<LoginScreen> {
       _busy = true;
       _error = null;
     });
+    final s = context.read<AppState>();
     try {
-      await context.read<AppState>().login(_email.text, _password.text);
+      await s.login(_email.text, _password.text);
+      showSnack('Signed in as ${roleLabel(s.role)}.');
     } on ApiException catch (e) {
       setState(() => _error = e.isNetwork
           ? "Couldn't reach the server. Check the server address (gear icon) and your connection."

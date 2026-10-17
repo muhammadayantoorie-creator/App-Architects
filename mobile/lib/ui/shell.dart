@@ -11,6 +11,37 @@ import 'screens/standings.dart';
 import 'screens/store.dart';
 import 'widgets/network_chip.dart';
 
+class _TenantLogo extends StatelessWidget {
+  const _TenantLogo({required this.url, required this.name});
+  final String? url;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Theme.of(context).colorScheme;
+    final fallback = CircleAvatar(
+      radius: 18,
+      backgroundColor: s.primary,
+      child: Text(name.isEmpty ? '?' : name[0].toUpperCase(),
+          style: TextStyle(color: s.onPrimary, fontWeight: FontWeight.bold),
+          semanticsLabel: '$name logo'),
+    );
+    if (url == null || url!.isEmpty) return Center(child: fallback);
+    return Center(
+      child: ClipOval(
+        child: Image.network(
+          url!,
+          width: 36,
+          height: 36,
+          fit: BoxFit.cover,
+          semanticLabel: '$name logo',
+          errorBuilder: (_, _, _) => fallback,
+        ),
+      ),
+    );
+  }
+}
+
 class Shell extends StatefulWidget {
   const Shell({super.key});
 
@@ -21,6 +52,13 @@ class Shell extends StatefulWidget {
 class _ShellState extends State<Shell> {
   int _index = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    // Role-aware home: managers and players land on their club, everyone else on matches.
+    if (const ['club_manager', 'player'].contains(context.read<AppState>().role)) _index = 3;
+  }
+
   void _open(Widget screen) =>
       Navigator.push(context, MaterialPageRoute<void>(builder: (_) => screen));
 
@@ -29,8 +67,13 @@ class _ShellState extends State<Shell> {
     final s = context.watch<AppState>();
     return Scaffold(
       appBar: AppBar(
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: _TenantLogo(url: s.tenant['logo_url'] as String?, name: s.tenantName),
+        ),
+        leadingWidth: 52,
         title: Text(s.tenantName, overflow: TextOverflow.ellipsis),
-        titleSpacing: 16,
+        titleSpacing: 8,
         actions: [
           const NetworkChip(),
           PopupMenuButton<String>(

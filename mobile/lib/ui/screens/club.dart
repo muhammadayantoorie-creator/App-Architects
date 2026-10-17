@@ -153,22 +153,39 @@ class _ClubViewState extends State<ClubView> with Loader {
   Widget _squad(BuildContext context, Map<String, dynamic> club) {
     final roster = asList(club['roster']);
     final canManage = context.select<AppState, bool>((s) => s.canManageClub(widget.clubId));
+    Future<void> addPlayer() async {
+      final added = await showAddPlayerSheet(context, club: club);
+      if (added == true) reload();
+    }
+
     if (roster.isEmpty) {
       return RefreshIndicator(
         onRefresh: reload,
-        child: const ScrollableEmpty(
-            child: EmptyState(icon: Icons.person_off_outlined, message: 'No players registered yet.')),
+        child: ScrollableEmpty(
+          child: EmptyState(
+            icon: Icons.person_off_outlined,
+            message: 'No players registered yet.',
+            actionLabel: canManage ? 'Add player' : null,
+            onAction: canManage ? addPlayer : null,
+          ),
+        ),
       );
     }
     return RefreshIndicator(
       onRefresh: reload,
       child: ListView(padding: const EdgeInsets.all(16), children: [
-        if (canManage)
+        if (canManage) ...[
+          OutlinedButton.icon(
+            onPressed: addPlayer,
+            icon: const Icon(Icons.person_add_alt, semanticLabel: 'Add player'),
+            label: const Text('Add player'),
+          ),
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text('Tap a player to transfer, loan or release.',
                 style: Theme.of(context).textTheme.bodySmall),
           ),
+        ],
         for (final p in roster)
           Card(
             margin: const EdgeInsets.only(bottom: 8),
