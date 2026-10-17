@@ -108,6 +108,8 @@ def _schema(body: Any) -> dict[str, Any]:
 def _lock(session: Session, scope: str, key: str) -> None:
     # The PostgreSQL transaction lock makes event-id replay and per-match
     # sequence assignment atomic across concurrent API requests.
+    if session.get_bind().dialect.name != "postgresql":
+        return
     session.execute(
         text("SELECT pg_advisory_xact_lock(hashtext(:lock_key))"),
         {"lock_key": f"{scope}:{key}"},

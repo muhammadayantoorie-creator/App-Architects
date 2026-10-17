@@ -11,10 +11,10 @@ class League(Base):
 
     league_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     sport_id: Mapped[str] = mapped_column(
-        ForeignKey("sports.sport_id"), String(40), nullable=False
+        String(40), ForeignKey("sports.sport_id"), nullable=False
     )
     tenant_id: Mapped[str | None] = mapped_column(
-        ForeignKey("tenants.tenant_id"), String(64), nullable=True
+        String(64), ForeignKey("tenants.tenant_id"), nullable=True
     )
     name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     points: Mapped[dict] = mapped_column(JSON, nullable=False)
@@ -37,7 +37,7 @@ class MatchStream(Base):
 
     match_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     sport_id: Mapped[str] = mapped_column(
-        ForeignKey("sports.sport_id"), String(40), nullable=False
+        String(40), ForeignKey("sports.sport_id"), nullable=False
     )
     league_id: Mapped[str | None] = mapped_column(
         ForeignKey("leagues.league_id", ondelete="CASCADE"), nullable=True

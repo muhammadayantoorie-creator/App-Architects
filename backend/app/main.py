@@ -11,7 +11,7 @@ from sqlalchemy import inspect, select, text
 from backend.core.db import Base, SessionLocal, create_all, engine
 from backend.core.errors import install_exception_handlers
 from backend.core.middleware import RequestBodyLimitMiddleware
-from backend.core.registry import run_reset_hooks
+from backend.core.registry import clear_database, run_reset_hooks
 from backend.core.state import baseline_is_seeded, set_value
 
 
@@ -75,8 +75,12 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     def initialize_database() -> None:
         create_all()
-        if _database_is_empty():
+        with SessionLocal() as session:
+            seeded = baseline_is_seeded(session)
+        if not seeded:
+            # Fresh volume or an interrupted seed: rebuild the baseline from scratch.
             with SessionLocal.begin() as session:
+                clear_database(session)
                 run_reset_hooks(session, 42, {})
                 set_value(session, "last_reset_seed", "42")
         with SessionLocal() as session:

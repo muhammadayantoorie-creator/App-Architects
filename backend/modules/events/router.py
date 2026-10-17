@@ -1,27 +1,24 @@
 """Match event ingestion endpoint."""
 
-import os
 from typing import Any
 
-import redis
 from fastapi import APIRouter, Body
 from fastapi.responses import JSONResponse
 
 from backend.core.db import SessionLocal
+from backend.core.redis_client import get_redis
 from backend.modules.events.service import append_event, score_match
 
 router = APIRouter()
 
 
 def _publish_match_updated(channel: str) -> None:
-    client = redis.Redis.from_url(
-        os.getenv("REDIS_URL", "redis://localhost:6379/0"),
-        socket_timeout=1,
-    )
+    # Best effort: a realtime fan-out failure must never fail the committed event.
     try:
+        client = get_redis()
         client.publish(channel, "match_updated")
-    finally:
-        client.close()
+    except Exception:
+        pass
 
 
 @router.post("/audit/v1/events", status_code=201)

@@ -1,6 +1,7 @@
 services:
   api:
     build: .
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
@@ -59,6 +60,7 @@ services:
   worker:
     build: .
     command: ["python", "-m", "backend.worker.main"]
+    restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379/0
     depends_on:

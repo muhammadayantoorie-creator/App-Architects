@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from backend.core.db import SessionLocal
 from backend.core.errors import ApiError
 from backend.core.ids import is_valid_id
-from backend.core.registry import clear_database, run_reset_hooks
+from backend.core.registry import clear_database, register_reset, run_reset_hooks
 from backend.core.state import baseline_is_seeded, set_value
 
 # Importing the seed modules registers their ordered reset hooks and imports
@@ -17,6 +17,14 @@ from backend.modules.sports import seed as _sports_seed  # noqa: F401,E402
 from backend.modules.tenants import seed as _tenants_seed  # noqa: F401,E402
 
 router = APIRouter()
+
+
+def _mark_baseline_complete(session: Session, _seed: int, _stock: dict) -> None:
+    # Runs last, after every module's seed hook; /health reports ok only once this is set.
+    set_value(session, "baseline_complete", "1")
+
+
+register_reset(10_000, _mark_baseline_complete)
 
 DEFAULT_SEED = 42
 DEFAULT_STOCK = {"var-jersey-001-M": 1, "var-jersey-001-L": 5}
