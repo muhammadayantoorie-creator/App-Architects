@@ -11,7 +11,8 @@ from sqlalchemy import inspect, select, text
 from backend.core.db import Base, SessionLocal, create_all, engine
 from backend.core.errors import install_exception_handlers
 from backend.core.middleware import RequestBodyLimitMiddleware
-from backend.core.registry import reset_hooks, run_reset_hooks
+from backend.core.registry import run_reset_hooks
+from backend.core.state import baseline_is_seeded, set_value
 
 
 def _load_routers(app: FastAPI) -> None:
@@ -60,11 +61,12 @@ def create_app() -> FastAPI:
         try:
             with SessionLocal() as session:
                 session.execute(text("SELECT 1"))
+                seeded = baseline_is_seeded(session)
         except Exception as exc:
             from fastapi import HTTPException
 
             raise HTTPException(status_code=503, detail="Database unavailable") from exc
-        if not getattr(app.state, "baseline_seeded", False):
+        if not seeded:
             from fastapi import HTTPException
 
             raise HTTPException(status_code=503, detail="Baseline is not seeded")
@@ -76,9 +78,9 @@ def create_app() -> FastAPI:
         if _database_is_empty():
             with SessionLocal.begin() as session:
                 run_reset_hooks(session, 42, {})
-        # Until feature modules register baseline data hooks, do not claim the
-        # service is ready: /health is the grader's seed-readiness gate.
-        app.state.baseline_seeded = bool(reset_hooks())
+                set_value(session, "last_reset_seed", "42")
+        with SessionLocal() as session:
+            app.state.baseline_seeded = baseline_is_seeded(session)
 
     return app
 

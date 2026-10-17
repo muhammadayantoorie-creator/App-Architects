@@ -217,7 +217,9 @@ def _validate_config(body: Any) -> dict[str, Any]:
     }
 
 
-def create_sport(session: Session, body: Any) -> dict[str, Any]:
+def create_sport(
+    session: Session, body: Any, *, commit: bool = True
+) -> dict[str, Any]:
     config = _validate_config(body)
     existing = session.get(Sport, config["sport_id"])
     if existing is not None:
@@ -231,7 +233,10 @@ def create_sport(session: Session, body: Any) -> dict[str, Any]:
     )
     session.add(sport)
     try:
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
     except IntegrityError as exc:
         session.rollback()
         raise ApiError(409, "SPORT_EXISTS", "Sport id already exists") from exc
