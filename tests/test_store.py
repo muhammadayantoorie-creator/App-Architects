@@ -170,6 +170,11 @@ def test_customer_id_stored_verbatim(client, reset):
     assert r.status_code == 201, r.text
     assert r.json()["receipt"]["payload"]["customer_id"] == nasty
     assert client.post("/audit/v1/checkout", json=_body(customer_id=nasty)).status_code == 200
+    uni = "Ali علی \U0001F600 (x) \\ y"
+    r = client.post("/audit/v1/checkout", json=_body(order_id="ord-uni", customer_id=uni, items=[{"variant_id": L, "quantity": 1}]))
+    assert r.status_code == 201, r.text
+    assert r.json()["receipt"]["payload"]["customer_id"] == uni
+    assert_error(client.post("/audit/v1/checkout", json=_body(order_id="ord-nul", customer_id="a\x00b")), 400, "VALIDATION_ERROR")
 
 
 def test_list_products_and_seed_stock_map(client):

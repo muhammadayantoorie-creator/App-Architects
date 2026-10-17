@@ -120,7 +120,11 @@ def parse_checkout(body: Any) -> CheckoutRequest:
         fields.add("order_id")
 
     customer_id = body.get("customer_id")
-    if not isinstance(customer_id, str) or not (1 <= len(customer_id) <= MAX_CUSTOMER_ID):
+    if (
+        not isinstance(customer_id, str)
+        or not (1 <= len(customer_id) <= MAX_CUSTOMER_ID)
+        or "\x00" in customer_id  # PostgreSQL text cannot hold NUL; never 5xx
+    ):
         fields.add("customer_id")
 
     items_in = body.get("items")
@@ -291,7 +295,12 @@ def checkout(body: Any) -> tuple[int, dict[str, Any]]:
 
         percent = 0
         if req.discount_code is not None:
-            discount = session.get(Discount, req.discount_code)
+            code = req.discount_code
+            discount = (
+                session.get(Discount, code)
+                if 0 < len(code) <= 64 and "\x00" not in code
+                else None
+            )
             if discount is None:
                 raise ApiError(
                     400,
