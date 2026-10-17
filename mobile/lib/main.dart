@@ -29,7 +29,7 @@ class NasconApp extends StatelessWidget {
     final seed = context.select<AppState, Color>((s) => s.seed);
     final loggedIn = context.select<AppState, bool>((s) => s.loggedIn);
     return MaterialApp(
-      title: 'NaSCon League',
+      title: 'Huddle',
       debugShowCheckedModeBanner: false,
       navigatorKey: navKey,
       scaffoldMessengerKey: messengerKey,

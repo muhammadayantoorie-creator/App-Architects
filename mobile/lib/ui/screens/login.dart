@@ -84,7 +84,15 @@ class _LoginScreenState extends State<LoginScreen> {
               constraints: const BoxConstraints(maxWidth: 480),
               child: AutofillGroup(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Text('NaSCon League', style: t.textTheme.headlineSmall),
+                  Row(children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset('assets/icon.png',
+                          width: 48, height: 48, semanticLabel: 'Huddle logo'),
+                    ),
+                    const SizedBox(width: 12),
+                    Text('Huddle', style: t.textTheme.headlineSmall),
+                  ]),
                   const SizedBox(height: 4),
                   Text('Follow matches, shop and manage your club.',
                       style: t.textTheme.bodyMedium
