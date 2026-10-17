@@ -17,7 +17,8 @@ if str(ROOT) not in sys.path:
 _tmp = pathlib.Path(tempfile.mkdtemp(prefix="nascon-tests-"))
 os.environ["DATABASE_URL"] = os.getenv("TEST_DATABASE_URL", f"sqlite:///{(_tmp / 'test.db').as_posix()}")
 os.environ["REDIS_URL"] = os.getenv("TEST_REDIS_URL", "fakeredis://")
-os.environ.setdefault("DAY1_SALT", "test-salt")
+# Always the test salt (compose may pass DAY1_SALT set-but-empty); tests sign with this value.
+os.environ["DAY1_SALT"] = os.getenv("TEST_DAY1_SALT", "test-salt")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
