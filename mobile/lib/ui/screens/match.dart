@@ -157,12 +157,18 @@ class ScoreHeader extends StatelessWidget {
           ]),
         );
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(32),
-        gradient: const LinearGradient(
+        color: const Color(0xFF1C1C1E),
+        image: const DecorationImage(image: AssetImage('assets/stadium.jpg'), fit: BoxFit.cover),
+      ),
+      child: Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1C1C1E), Color(0xFF243F0C), Color(0xFF4E7A12)],
+          colors: [Color(0xB3000000), Color(0x66000000), Color(0xCC3E6B0E)],
         ),
       ),
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
@@ -199,6 +205,7 @@ class ScoreHeader extends StatelessWidget {
           side(away, 'Away'),
         ]),
       ]),
+      ),
     );
   }
 }

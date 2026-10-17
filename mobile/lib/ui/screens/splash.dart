@@ -22,7 +22,15 @@ class SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: SafeArea(
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/stadium.jpg'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Color(0xA6000000), BlendMode.darken),
+          ),
+        ),
+        child: SafeArea(
         child: Center(
           child: Semantics(
             label: 'Loading Huddle',
@@ -53,6 +61,7 @@ class SplashScreen extends StatelessWidget {
             ]),
           ),
         ),
+      ),
       ),
     );
   }
