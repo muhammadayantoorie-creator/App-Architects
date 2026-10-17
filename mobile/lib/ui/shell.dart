@@ -21,9 +21,9 @@ class _TenantLogo extends StatelessWidget {
     final s = Theme.of(context).colorScheme;
     final fallback = CircleAvatar(
       radius: 18,
-      backgroundColor: s.primary,
+      backgroundColor: Colors.white,
       child: Text(name.isEmpty ? '?' : name[0].toUpperCase(),
-          style: TextStyle(color: s.onPrimary, fontWeight: FontWeight.bold),
+          style: TextStyle(color: s.primary, fontWeight: FontWeight.w800),
           semanticsLabel: '$name logo'),
     );
     if (url == null || url!.isEmpty) return Center(child: fallback);
